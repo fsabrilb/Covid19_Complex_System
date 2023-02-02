@@ -1,0 +1,16 @@
+region,subregion,p_value,alpha_0.001,alpha_0.01,alpha_0.05,alpha_0.1
+Brasil,State,1.8810072395894443e-6,causal,causal,causal,causal
+Colombia,Municipalities,1.1636065884099481e-4,causal,causal,causal,causal
+Europe,Country,0.8636040908141852,non-causal,non-causal,non-causal,non-causal
+Georgia,County,0.8047935265983077,non-causal,non-causal,non-causal,non-causal
+Illinois,County,0.9999999999999112,non-causal,non-causal,non-causal,non-causal
+India,State,1.5581929383626958e-5,causal,causal,causal,causal
+Kansas,County,0.20874803486374435,non-causal,non-causal,non-causal,non-causal
+Kentucky,County,0.022431908954290137,non-causal,non-causal,causal,causal
+Missouri,County,8.728970384151667e-12,causal,causal,causal,causal
+North Carolina,County,0.32429234901585796,non-causal,non-causal,non-causal,non-causal
+Spain,Province,0.8731566014210105,non-causal,non-causal,non-causal,non-causal
+Texas,County,8.60719522898845e-6,causal,causal,causal,causal
+USA,State,0.049239946626610145,non-causal,non-causal,causal,causal
+Virginia,County,4.9549917055565066e-9,causal,causal,causal,causal
+World,Country,0.0052143142655648326,non-causal,causal,causal,causal
