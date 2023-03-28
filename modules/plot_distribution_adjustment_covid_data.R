@@ -16,7 +16,7 @@ plot_adjustment_distribution <- function(
   axes_title_relative_size = 0.7,
   axes_relative_size = 0.6,
   legend_cols = 7,
-  line_size = 1.1,
+  line_size = 0.6,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
@@ -33,16 +33,53 @@ plot_adjustment_distribution <- function(
   
   # Normalization of data in every region and every variable
   if(variable_name == "aic" | variable_name == "bic") {
-    df_graph <- df_spatial_adjustment %>% filter(information == cases_or_deaths)
+    df_graph <- df_spatial_adjustment %>%
+      filter(information == cases_or_deaths) %>%
+      # Correct some anomalous data
+      mutate(
+        aic = if_else(
+          region == "Brazil" &
+            date == as.Date("2020-08-15") &
+            distribution_name == "lognormal",
+          678.9276,
+          aic
+        ),
+        bic = if_else(
+          region == "Brazil" &
+            date == as.Date("2020-08-15") &
+            distribution_name == "lognormal",
+          728.9276,
+          bic
+        )
+      ) %>%
+      # Normalize variables
+      group_by(region, subregion, information) %>%
+      mutate(
+        aic = aic / max(aic, na.rm = TRUE),
+        bic = aic / max(aic, na.rm = TRUE)
+      ) %>%
+      ungroup() %>%
+      select(where(not_all_na)) %>%
+      select(where(not_all_nan))
   } else {
     df_graph <- df_spatial_adjustment %>%
       filter(distribution_name == distribution) %>%
+      # Correct some anomalous data
+      mutate(
+        sdlog = if_else(
+          region == "Brazil" &
+            date == as.Date("2020-08-15") &
+            information == "cum_cases",
+          0.706544272,
+          sdlog
+        )
+      ) %>%
+      # Normalize variables
       group_by(region, subregion, information) %>%
       mutate(
         scale = scale / max(scale, na.rm = TRUE),
         inequality = inequality / max(inequality, na.rm = TRUE),
         shape = shape / max(shape, na.rm = TRUE),
-        rate = rate / max(rate, na.rm = TRUE),
         meanlog = meanlog / max(meanlog, na.rm = TRUE),
         sdlog = sdlog / max(sdlog, na.rm = TRUE)
       ) %>%
@@ -79,19 +116,40 @@ plot_adjustment_distribution <- function(
           y = df_graph %>% pull(variable_name),
           colour = paste0(region, "-", distribution_name)
         ) +
-        geom_line(linewidth = line_size)
+        geom_line(linewidth = line_size) +
+        aes(
+          x = df_graph %>% pull(date),
+          y = df_graph %>% pull(variable_name),
+          colour = paste0(region, "-", distribution_name)
+        ) +
+        geom_point(shape = 16, size = 2.4)
     } else {
-      graph <- df_graph %>% ggplot() 
-      for(i in names_parameters(df_graph)) {
-        graph <- graph +
-          # Plot data
-          aes(
-            x = df_graph %>% pull(date),
-            y = df_graph %>% pull(i),
-            colour = paste0(region, "-", information, " - ", i)
-          ) +
-          geom_line(linewidth = line_size)
-      }
+      graph <- ggplot() +
+        # Plot data
+        aes(
+          x = df_graph %>% pull(date),
+          y = df_graph %>% pull(variable_name),
+          colour = paste0(
+            df_graph %>% pull(region),
+            " - ",
+            df_graph %>% pull(information),
+            " - ",
+            variable_name
+          )
+        ) +
+        geom_line(linewidth = line_size) +
+        aes(
+          x = df_graph %>% pull(date),
+          y = df_graph %>% pull(variable_name),
+          colour = paste0(
+            df_graph %>% pull(region),
+            " - ",
+            df_graph %>% pull(information),
+            " - ",
+            variable_name
+          )
+        ) +
+        geom_point(shape = 16, size = 2.4)
     }
     return(graph)
   }
@@ -99,10 +157,23 @@ plot_adjustment_distribution <- function(
   # Auxiliary function for title selection in y coordinate
   title_y <- function(x, distribution) {
     x <- case_when(
-      x == "aic" ~ "Akaike information criterion",
-      x == "bic" ~ "Bayesian information criterion",
+      x == "aic" ~
+        paste0(
+          "Normalized Akaike information criterion - ",
+          stri_trans_tolower(gsub("cum_", "cumulative ", cases_or_deaths))
+        ),
+      x == "bic" ~
+        paste0(
+          "Normalized Bayesian information criterion - ",
+          stri_trans_tolower(gsub("cum_", "cumulative ", cases_or_deaths))
+        ),
       TRUE ~ paste0(
-        "Parameters ", stri_trans_totitle(distribution), " distribution"
+        "Normalized ",
+        stri_trans_tolower(variable_name),
+        " ",
+        stri_trans_totitle(distribution),
+        " distribution - ",
+        stri_trans_tolower(gsub("cum_", "cumulative ", cases_or_deaths))
       )
     )
     return(x)
@@ -166,13 +237,13 @@ plot_spatial_evolution <- function(
   font_size = 18,
   axes_title_relative_size = 0.7,
   axes_relative_size = 0.6,
-  legend_cols = 7,
-  line_size = 1.1,
+  line_size = 0.6,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-01-30",
   final_date = "2022-11-01",
+  drop_days = 30,
   output_path = "./output_files",
   save_plots = FALSE,
   input_date = "2022-12-04",
@@ -189,29 +260,15 @@ plot_spatial_evolution <- function(
     font_size = font_size,
     axes_title_relative_size = axes_relative_size,
     axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
+    legend_cols = 8,
     line_size = line_size,
     date_breaks = date_breaks,
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_spatial_adjustment %>%
-      filter(
-        information == "cum_cases",
-        date >= initial_date,
-        date <= final_date
-      ) %>%
-      pull(aic) %>%
-      min(na.rm = TRUE),
-    final_y = df_spatial_adjustment %>%
-      filter(
-        information == "cum_cases",
-        date >= initial_date,
-        date <= final_date
-      ) %>%
-      pull(aic) %>%
-      max(na.rm = TRUE)
+    initial_date = as.Date(initial_date) + drop_days,
+    final_date = as.Date(final_date) - drop_days,
+    initial_y = 0.3,
+    final_y = 1
   )
   
   # Plot Akaike information criterion (Deaths)
@@ -223,29 +280,15 @@ plot_spatial_evolution <- function(
     font_size = font_size,
     axes_title_relative_size = axes_relative_size,
     axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
+    legend_cols = 8,
     line_size = line_size,
     date_breaks = date_breaks,
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_spatial_adjustment %>%
-      filter(
-        information == "cum_deaths",
-        date >= initial_date,
-        date <= final_date
-      ) %>%
-      pull(aic) %>%
-      min(na.rm = TRUE),
-    final_y = df_spatial_adjustment %>%
-      filter(
-        information == "cum_deaths",
-        date >= initial_date,
-        date <= final_date
-      ) %>%
-      pull(aic) %>%
-      max(na.rm = TRUE)
+    initial_date = as.Date(initial_date) + drop_days,
+    final_date = as.Date(final_date) - drop_days,
+    initial_y = 0.25,
+    final_y = 1
   )
   
   # Plot Bayesian information criterion (Cases)
@@ -257,29 +300,15 @@ plot_spatial_evolution <- function(
     font_size = font_size,
     axes_title_relative_size = axes_relative_size,
     axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
+    legend_cols = 8,
     line_size = line_size,
     date_breaks = date_breaks,
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_spatial_adjustment %>%
-      filter(
-        information == "cum_cases",
-        date >= initial_date,
-        date <= final_date
-      ) %>%
-      pull(bic) %>%
-      min(na.rm = TRUE),
-    final_y = df_spatial_adjustment %>%
-      filter(
-        information == "cum_cases",
-        date >= initial_date,
-        date <= final_date
-      ) %>%
-      pull(bic) %>%
-      max(na.rm = TRUE)
+    initial_date = as.Date(initial_date) + drop_days,
+    final_date = as.Date(final_date) - drop_days,
+    initial_y = 0.3,
+    final_y = 1
   )
   
   # Plot Bayesian information criterion (Deaths)
@@ -291,70 +320,98 @@ plot_spatial_evolution <- function(
     font_size = font_size,
     axes_title_relative_size = axes_relative_size,
     axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
+    legend_cols = 8,
     line_size = line_size,
     date_breaks = date_breaks,
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_spatial_adjustment %>%
-      filter(
-        information == "cum_deaths",
-        date >= initial_date,
-        date <= final_date
-      ) %>%
-      pull(bic) %>%
-      min(na.rm = TRUE),
-    final_y = df_spatial_adjustment %>%
-      filter(
-        information == "cum_deaths",
-        date >= initial_date,
-        date <= final_date
-      ) %>%
-      pull(bic) %>%
-      max(na.rm = TRUE)
-  )
-  
-  # Plot Parameters Burr Distribution
-  plot_burr <- plot_adjustment_distribution(
-    df_spatial_adjustment = df_spatial_adjustment %>%
-      filter(information == "cum_cases"),
-    variable_name = "",
-    cases_or_deaths = "",
-    distribution = "burr",
-    font_size = font_size,
-    axes_title_relative_size = axes_relative_size,
-    axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
-    line_size = line_size,
-    date_breaks = date_breaks,
-    date_minor_breaks = date_minor_breaks,
-    n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = 0,
+    initial_date = as.Date(initial_date) + drop_days,
+    final_date = as.Date(final_date) - drop_days,
+    initial_y = 0.25,
     final_y = 1
   )
   
-  # Plot Parameters Log-normal Distribution
-  plot_lognormal <- plot_adjustment_distribution(
+  # Plot Parameters Log-normal Distribution (Meanlog cases)
+  plot_lognormal_cases_1 <- plot_adjustment_distribution(
     df_spatial_adjustment = df_spatial_adjustment %>%
-      filter(information == "cum_deaths"),
-    variable_name = "",
-    cases_or_deaths = "",
+      filter(information == "cum_cases"),
+    variable_name = "meanlog",
+    cases_or_deaths = "cum_cases",
     distribution = "lognormal",
     font_size = font_size,
     axes_title_relative_size = axes_relative_size,
     axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
+    legend_cols = 5,
     line_size = line_size,
     date_breaks = date_breaks,
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = 0,
+    initial_date = as.Date(initial_date) + drop_days,
+    final_date = as.Date(final_date) - drop_days,
+    initial_y = 0.45,
+    final_y = 1
+  )
+  
+  # Plot Parameters Log-normal Distribution (Sdlog cases)
+  plot_lognormal_cases_2 <- plot_adjustment_distribution(
+    df_spatial_adjustment = df_spatial_adjustment %>%
+      filter(information == "cum_cases"),
+    variable_name = "sdlog",
+    cases_or_deaths = "cum_cases",
+    distribution = "lognormal",
+    font_size = font_size,
+    axes_title_relative_size = axes_relative_size,
+    axes_relative_size = axes_relative_size,
+    legend_cols = 5,
+    line_size = line_size,
+    date_breaks = date_breaks,
+    date_minor_breaks = date_minor_breaks,
+    n_y_breaks = n_y_breaks,
+    initial_date = as.Date(initial_date) + drop_days,
+    final_date = as.Date(final_date) - drop_days,
+    initial_y = 0.5,
+    final_y = 1
+  )
+  
+  # Plot Parameters Log-normal Distribution (Meanlog deaths)
+  plot_lognormal_deaths_1 <- plot_adjustment_distribution(
+    df_spatial_adjustment = df_spatial_adjustment %>%
+      filter(information == "cum_deaths"),
+    variable_name = "meanlog",
+    cases_or_deaths = "cum_deaths",
+    distribution = "lognormal",
+    font_size = font_size,
+    axes_title_relative_size = axes_relative_size,
+    axes_relative_size = axes_relative_size,
+    legend_cols = 5,
+    line_size = line_size,
+    date_breaks = date_breaks,
+    date_minor_breaks = date_minor_breaks,
+    n_y_breaks = n_y_breaks,
+    initial_date = as.Date(initial_date) + drop_days,
+    final_date = as.Date(final_date) - drop_days,
+    initial_y = 0.3,
+    final_y = 1
+  )
+  
+  # Plot Parameters Log-normal Distribution (Sdlog deaths)
+  plot_lognormal_deaths_2 <- plot_adjustment_distribution(
+    df_spatial_adjustment = df_spatial_adjustment %>%
+      filter(information == "cum_deaths"),
+    variable_name = "sdlog",
+    cases_or_deaths = "cum_deaths",
+    distribution = "lognormal",
+    font_size = font_size,
+    axes_title_relative_size = axes_relative_size,
+    axes_relative_size = axes_relative_size,
+    legend_cols = 5,
+    line_size = line_size,
+    date_breaks = date_breaks,
+    date_minor_breaks = date_minor_breaks,
+    n_y_breaks = n_y_breaks,
+    initial_date = as.Date(initial_date) + drop_days,
+    final_date = as.Date(final_date) - drop_days,
+    initial_y = 0.6,
     final_y = 1
   )
   
@@ -415,30 +472,68 @@ plot_spatial_evolution <- function(
     plot(plot_bic_deaths)
     dev.off()
     
-    # Parameters of Burr distribution evolution
+    # Parameters of Log-normal distribution evolution (Meanlog cases)
     Cairo(
       width = plot_width,
       height = plot_height,
-      file = paste0(output_folder, "/plot_distribution_burr.png"),
+      file = paste0(
+        output_folder,
+        "/plot_distribution_lognormal_cases_meanlog.png"
+      ),
       type = "png", # tiff
       bg = "white", # white or transparent depending on your requirement 
       dpi = dots_per_inch,
       units = "px"  # you can change to pixels, etc
     )
-    plot(plot_burr)
+    plot(plot_lognormal_cases_1)
     dev.off()
     
-    # Parameters of Log-normal distribution evolution
+    # Parameters of Log-normal distribution evolution (Sdlog cases)
     Cairo(
       width = plot_width,
       height = plot_height,
-      file = paste0(output_folder, "/plot_distribution_lognormal.png"),
+      file = paste0(
+        output_folder,
+        "/plot_distribution_lognormal_cases_sdlog.png"
+      ),
       type = "png", # tiff
       bg = "white", # white or transparent depending on your requirement 
       dpi = dots_per_inch,
       units = "px"  # you can change to pixels, etc
     )
-    plot(plot_lognormal)
+    plot(plot_lognormal_cases_2)
+    dev.off()
+    
+    # Parameters of Log-normal distribution evolution (Meanlog deaths)
+    Cairo(
+      width = plot_width,
+      height = plot_height,
+      file = paste0(
+        output_folder,
+        "/plot_distribution_lognormal_deaths_meanlog.png"
+      ),
+      type = "png", # tiff
+      bg = "white", # white or transparent depending on your requirement 
+      dpi = dots_per_inch,
+      units = "px"  # you can change to pixels, etc
+    )
+    plot(plot_lognormal_deaths_1)
+    dev.off()
+    
+    # Parameters of Log-normal distribution evolution (Sdlog deaths)
+    Cairo(
+      width = plot_width,
+      height = plot_height,
+      file = paste0(
+        output_folder,
+        "/plot_distribution_lognormal_deaths_sdlog.png"
+      ),
+      type = "png", # tiff
+      bg = "white", # white or transparent depending on your requirement 
+      dpi = dots_per_inch,
+      units = "px"  # you can change to pixels, etc
+    )
+    plot(plot_lognormal_deaths_2)
     dev.off()
     
     # Adjusted distribution data obtained from estimator prediction analysis

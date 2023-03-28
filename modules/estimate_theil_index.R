@@ -150,10 +150,9 @@ estimate_theil_exponential_sample <- function(
     
     # Log output for monitoring progress
     if(verbose >= 1){
-      setwd(path)
       cat(
         paste0("Estimated Theil for simulation of exponential: ", i, "\n"),
-        file = "log_theil_exponential.txt",
+        file = paste0(path, "/log_theil_exponential.txt"),
         append = TRUE
       )
     }
@@ -200,14 +199,13 @@ estimate_excess_theil_exponential_sample <- function(
       
       # Log output for monitoring progress
       if(verbose >= 1){
-        setwd(path)
         cat(
           paste0(
             "------------ Length of exponential sample: ",
             n_length_vector[i],
             " ------------\n"
           ),
-          file = "log_theil_optimum.txt",
+          file = paste0(path, "/log_theil_optimum.txt"),
           append = TRUE
         )
       }

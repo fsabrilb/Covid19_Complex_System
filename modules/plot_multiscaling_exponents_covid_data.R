@@ -27,31 +27,41 @@ plot_multiscaling_overlapping <- function(
   dots_per_inch = 400,
   verbose = 1
 ) {
-  df_graph <- df_multiscaling_exponents_covid %>%
+  df_graph_cases <- df_multiscaling_exponents_covid %>%
     filter(information == "cases") %>%
     select(region, subregion, date, order, hurst_value, hurst_sd) %>%
-    rename(hurst_value_cases = hurst_value, hurst_sd_cases = hurst_sd) %>%
-    full_join(
-      df_multiscaling_exponents_covid %>%
-        filter(information == "deaths") %>%
-        select(region, subregion, date, order, hurst_value, hurst_sd) %>%
-        rename(hurst_value_deaths = hurst_value, hurst_sd_deaths = hurst_sd),
-      by = c("region", "subregion", "date", "order")
-    )
+    rename(hurst_value_cases = hurst_value, hurst_sd_cases = hurst_sd)
+  
+  df_graph_deaths <- df_multiscaling_exponents_covid %>%
+    filter(information == "deaths") %>%
+    select(region, subregion, date, order, hurst_value, hurst_sd) %>%
+    rename(hurst_value_deaths = hurst_value, hurst_sd_deaths = hurst_sd)
   
   # Loop over regions
-  for(i in df_graph %>% distinct(region) %>% pull()) {
-    initial_y <- df_graph %>%
+  loop_index <- c(
+    df_graph_cases %>% distinct(region) %>% pull(),
+    df_graph_deaths %>% distinct(region) %>% pull()
+  ) %>% unique()
+  for(i in loop_index) {
+    initial_y_cases <- df_graph_cases %>%
       filter(region == i) %>%
       pull(hurst_value_cases) %>%
       min(na.rm = TRUE)
-    final_y <- df_graph %>%
+    final_y_cases <- df_graph_cases %>%
       filter(region == i) %>%
       pull(hurst_value_cases) %>%
       max(na.rm = TRUE)
+    initial_y_deaths <- df_graph_deaths %>%
+      filter(region == i) %>%
+      pull(hurst_value_deaths) %>%
+      min(na.rm = TRUE)
+    final_y_deaths <- df_graph_deaths %>%
+      filter(region == i) %>%
+      pull(hurst_value_deaths) %>%
+      max(na.rm = TRUE)
     
     # Graph structure (Data information)
-    graph_cases <- df_graph %>%
+    graph_cases <- df_graph_cases %>%
       filter(region == i) %>%
       ggplot() +
       # Plot data (Cases)
@@ -60,13 +70,21 @@ plot_multiscaling_overlapping <- function(
         y = hurst_value_cases,
         colour = paste0("Cases, ", date)
       ) %>%
-      geom_point(size = line_size) +
+      geom_point(size = 1.8) +
       aes(
         x = order,
         y = hurst_value_cases,
         colour = paste0("Cases, ", date)
       ) %>%
       geom_line(linewidth = line_size) +
+      # Error bars (Cases)
+      aes(
+        x = order,
+        ymin = hurst_value_cases - hurst_sd_cases,
+        ymax = hurst_value_cases + hurst_sd_cases,
+        fill = paste0("Cases, ", date)
+      ) %>%
+      geom_ribbon(alpha = 0.09) +
       # X- axis
       scale_x_continuous(n.breaks = n_x_breaks) +
       # Y - axis
@@ -79,7 +97,7 @@ plot_multiscaling_overlapping <- function(
       # Limits
       coord_cartesian(
         xlim = c(initial_x, final_x),
-        ylim = c(initial_y, final_y)
+        ylim = c(initial_y_cases, final_y_cases)
       ) +
       # Graph structure (Theme and legend)
       cowplot::theme_half_open(font_size) +
@@ -109,16 +127,7 @@ plot_multiscaling_overlapping <- function(
       ) +
       guides(colour = guide_legend(ncol = legend_cols))
     
-    initial_y <- df_graph %>%
-      filter(region == i) %>%
-      pull(hurst_value_deaths) %>%
-      min(na.rm = TRUE)
-    final_y <- df_graph %>%
-      filter(region == i) %>%
-      pull(hurst_value_deaths) %>%
-      max(na.rm = TRUE)
-    
-    graph_deaths <- df_graph %>%
+    graph_deaths <- df_graph_deaths %>%
       filter(region == i) %>%
       ggplot() +
       # Plot data (Deaths)
@@ -134,6 +143,14 @@ plot_multiscaling_overlapping <- function(
         colour = paste0("Deaths, ", date)
       ) %>%
       geom_line(linewidth = line_size) +
+      # Error bars (Cases)
+      aes(
+        x = order,
+        ymin = hurst_value_deaths - hurst_sd_deaths,
+        ymax = hurst_value_deaths + hurst_sd_deaths,
+        fill = paste0("Cases, ", date)
+      ) %>%
+      geom_ribbon(alpha = 0.05) +
       # X- axis
       scale_x_continuous(n.breaks = n_x_breaks) +
       # Y - axis
@@ -146,7 +163,7 @@ plot_multiscaling_overlapping <- function(
       # Limits
       coord_cartesian(
         xlim = c(initial_x, final_x),
-        ylim = c(initial_y, final_y)
+        ylim = c(initial_y_deaths, final_y_deaths)
       ) +
       # Graph structure (Theme and legend)
       cowplot::theme_half_open(font_size) +

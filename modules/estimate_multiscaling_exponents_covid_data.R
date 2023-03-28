@@ -33,8 +33,8 @@ prepare_hurst_covid_data <- function(
     mutate(index = cumsum(c(0, diff(date))) + 1) %>%
     ungroup() %>%
     # Selection of variable name
-    select_at(all_of(
-      c("region", "subregion", "date", "index", variable_name)),
+    select_at(
+      all_of(c("region", "subregion", "date", "index", variable_name)),
       rename_variable
     )
   
@@ -47,6 +47,8 @@ estimate_multiscaling_exponents_local <- function(
   days_treshold = 60,
   dfa_degree = 1,
   q_order_vector,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   path = "/home/ASIS/Temp_Felipe",
   verbose = 1
@@ -66,6 +68,8 @@ estimate_multiscaling_exponents_local <- function(
       df_time_series = df_hurst,
       dfa_degree = dfa_degree,
       q_order_vector = q_order_vector,
+      scale_min = scale_min,
+      scale_max = scale_max,
       n_step = n_step,
       path = path,
       verbose = verbose
@@ -117,6 +121,8 @@ estimate_multiscaling_exponents_regions <- function(
   days_treshold = 60,
   dfa_degree = 1,
   q_order_vector,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   path = "/home/ASIS/Temp_Felipe",
   verbose = 1
@@ -149,12 +155,11 @@ estimate_multiscaling_exponents_regions <- function(
   ) %dopar% {
     # Log output for monitoring progress
     if(verbose >= 1){
-      setwd(path)
       cat(
         paste0(
           "Estimate multiscaling exponent for region ", i, "\n"
         ),
-        file = "log_multiscaling_exponents_covid_regions.txt",
+        file = paste0(path, "/log_multiscaling_exponents_covid_regions.txt"),
         append = TRUE
       )
     }
@@ -165,6 +170,8 @@ estimate_multiscaling_exponents_regions <- function(
       days_treshold = days_treshold,
       dfa_degree = dfa_degree,
       q_order_vector = q_order_vector,
+      scale_min = scale_min,
+      scale_max = scale_max,
       n_step = n_step,
       path = path,
       verbose = verbose
@@ -185,6 +192,8 @@ estimate_multiscaling_exponents_covid <- function(
   days_treshold = 60,
   dfa_degree = 1,
   q_order_vector,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   n_days_skipped = 0,
   fixed_window = "no_fixed",
@@ -236,7 +245,6 @@ estimate_multiscaling_exponents_covid <- function(
       
       # Log output for monitoring progress
       if(verbose >= 1){
-        setwd(path)
         cat(
           paste0(
             "Estimate Multiscaling exponents for date ",
@@ -245,7 +253,7 @@ estimate_multiscaling_exponents_covid <- function(
             fixed_window,
             "\n"
           ),
-          file = "log_multiscaling_exponents_covid_dates.txt",
+          file = paste0(path, "/log_multiscaling_exponents_covid_dates.txt"),
           append = TRUE
         )
       }
@@ -265,6 +273,8 @@ estimate_multiscaling_exponents_covid <- function(
         days_treshold = days_treshold,
         dfa_degree = dfa_degree,
         q_order_vector = q_order_vector,
+        scale_min = scale_min,
+        scale_max = scale_max,
         n_step = n_step,
         path = path,
         verbose = verbose
@@ -402,6 +412,192 @@ estimate_multiscaling_exponents_covid <- function(
   }
   
   return(list_hurst)
+}
+
+# Estimate Multifractal DFA analysis by spatial clustering ----
+estimate_mfdfa_analysis_covid <- function(
+  df_covid,
+  initial_date,
+  final_date = Sys.Date(),
+  variable_name = "cases",
+  days_treshold = 60,
+  dfa_degree = 1,
+  q_order_vector = c(2),
+  n_days_skipped = 0,
+  fixed_window = "no_fixed",
+  path = "/home/ASIS/Temp_Felipe",
+  verbose = 1,
+  saved_all_data = FALSE,
+  input_path_processed = "./input_files/processed_data",
+  input_date = "2022-12-04"
+) {
+  if(saved_all_data == FALSE) {
+    # Hurst data
+    df_hurst <- prepare_hurst_covid_data(
+      df_covid = df_covid,
+      initial_date = initial_date,
+      final_date = final_date,
+      variable_name = variable_name
+    )
+    
+    # Selection of loop size
+    loop_index <- df_hurst %>%
+      filter(index %% (n_days_skipped + 1) == 0) %>%
+      distinct(date) %>%
+      pull()
+    
+    # Parallel loop over loop_index for estimate Hurst per date
+    df_mfdfa <- foreach(
+      i = loop_index,
+      .combine = "bind_rows",
+      .errorhandling = c("remove"),
+      .packages = c(
+        "dplyr",
+        "purrr",
+        "MFDFA",
+        "foreach",
+        "data.table",
+        "doParallel"
+      )
+    ) %dopar% {
+      # Renovation of initial_date for fixed_window
+      if(fixed_window == "fixed") {
+        initial_date <- i - days_treshold
+      }
+      
+      # Generate local Hurst data
+      df_hurst_aux <- df_hurst %>%
+        filter(date >= initial_date, date <= i) %>%
+        group_by(region, subregion) %>%
+        mutate(index = index - min(index, na.rm = TRUE)) %>%
+        ungroup()
+      
+      # Loop index over regions
+      loop_index_2 <- df_hurst_aux %>%
+        distinct(region) %>%
+        pull()
+      
+      # Generate MFDFA analysis per region
+      df_mfdfa_region <- foreach(
+        j = loop_index_2,
+        .combine = "bind_rows",
+        .errorhandling = c("remove"),
+        .packages = c(
+          "dplyr",
+          "purrr",
+          "MFDFA",
+          "foreach",
+          "data.table",
+          "doParallel"
+        )
+      ) %dopar% {
+        # Generate MFDFA analysis per q-order
+        df_mfdfa_q <- foreach(
+          k = q_order_vector,
+          .combine = "bind_rows",
+          .errorhandling = c("remove"),
+          .packages = c(
+            "dplyr",
+            "purrr",
+            "MFDFA",
+            "foreach",
+            "data.table",
+            "doParallel"
+          )
+        ) %dopar% {
+          # Log output for monitoring progress
+          if(verbose >= 1){
+            cat(
+              paste0(
+                "Estimate ",
+                fixed_window,
+                " MFDFA for date ",
+                i,
+                " region: ",
+                j,
+                " order: ",
+                k,
+                "\n"
+              ),
+              file = paste0(path, "/log_mfdfa_analysis_covid.txt"),
+              append = TRUE
+            )
+          }
+          
+          # Estimate MFDFA analysis using MFDFA library
+          df_ts <- df_hurst_aux %>%
+            filter(region == as.character(j)) %>%
+            pull("value")
+          
+          list_temp <- MFDFA(
+            tsx = df_ts,
+            scale = c(floor(0.20 * length(df_ts)):floor(0.85 * length(df_ts))),
+            m = dfa_degree,
+            q = k
+          )
+          
+          # Construct dataframe of MFDFA analysis
+          df_temp <- data.table(
+            region = j,
+            date = i,
+            q_order = k,
+            generalized_hurst = list_temp %>% purrr::pluck("Hq"),
+            mass_exponent = list_temp %>% purrr::pluck("tau_q")
+          )
+          
+          df_temp
+        }
+        
+        df_mfdfa_q
+      }
+      
+      df_mfdfa_region
+    }
+    
+    # Merge final data of subregion
+    df_mfdfa <- df_mfdfa %>%
+      left_join(
+        df_hurst %>% distinct(region, subregion, date),
+        by = c("region", "date")
+      ) %>%
+      relocate(subregion, .after = region) %>%
+      arrange(region, subregion, date, q_order)
+    
+    # Save all Covid data in processed data for not reprocess the information
+    write.csv(
+      df_mfdfa,
+      paste0(
+        input_path_processed,
+        "/df_mfdfa_analysis_covid_",
+        variable_name,
+        "_",
+        fixed_window,
+        "_",
+        gsub("-", "", input_date),
+        ".csv"
+      ),
+      fileEncoding = "UTF-8",
+      row.names = FALSE
+    )
+    
+  } else {
+    # Load all data from processed data for not reprocess the information
+    df_mfdfa <- fread(
+      paste0(
+        input_path_processed,
+        "/df_mfdfa_analysis_covid_",
+        variable_name,
+        "_",
+        fixed_window,
+        "_",
+        gsub("-", "", input_date),
+        ".csv"
+      )
+    ) %>% mutate(date = as.Date(date))
+    
+  }
+  
+  return(df_mfdfa)
 }
 
 # Auxiliary function for preparation of Multiscaling exponents data ----

@@ -156,10 +156,9 @@ estimate_hurst_brownian_path_rs <- function(
     
     # Log output for monitoring progress
     if(verbose >= 1){
-      setwd(path)
       cat(
         paste0("Estimated Hurst for simulation of Brownian path: ", i, "\n"),
-        file = "log_hurst_normal_rs.txt",
+        file = paste0(path, "/log_hurst_normal_rs.txt"),
         append = TRUE
       )
     }
@@ -229,14 +228,13 @@ estimate_excess_hurst_brownian_path_rs <- function(
       
       # Log output for monitoring progress
       if(verbose >= 1){
-        setwd(path)
         cat(
           paste0(
             "------------ Length of Brownian path: ",
             n_length_vector[i],
             " ------------\n"
           ),
-          file = "log_hurst_optimum_rs.txt",
+          file = paste0(path, "/log_hurst_optimum_rs.txt"),
           append = TRUE
         )
       }

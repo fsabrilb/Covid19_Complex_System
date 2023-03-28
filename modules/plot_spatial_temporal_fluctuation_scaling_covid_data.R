@@ -32,29 +32,24 @@ plot_standard_spatial_tfs <- function(
       -mean_cum_deaths,
       -sd_cum_deaths
     ) %>%
-    distinct() %>%
-    filter(
-      alpha_cases <
-        quantile(alpha_cases, 0.95, na.rm = TRUE) %>% as.numeric(),
-      alpha_cases >
-        quantile(alpha_cases, 0.05, na.rm = TRUE) %>% as.numeric(),
-      alpha_deaths <
-        quantile(alpha_deaths, 0.95, na.rm = TRUE) %>% as.numeric(),
-      alpha_deaths >
-        quantile(alpha_deaths, 0.05, na.rm = TRUE) %>% as.numeric(),
-      r2_cases >= 0.95,
-      r2_deaths >= 0.95
-    )
+    distinct()
   
   # Auxiliary function for title selection in y coordinate
   title_y <- function(x) {
-    x <- x %>% stri_replace_all_regex("_", " ") %>% stri_trans_totitle()
+    x <- x %>%
+      stri_replace_all_regex(c("_", "cases"), c(" ", "")) %>%
+      stri_trans_totitle()
+    if(x == "alpha_cases" | x == "alpha_deaths") {
+      x <- paste0("Coefficient", " of ensemble fluctuation scaling")
+    } else {
+      x <- paste0("Exponent", " of ensemble fluctuation scaling")
+    }
     return(x)
   }
   
   # Auxiliary function for y-axis scale
   scale_y <- function(x) {
-    if(x == "coefficient_cases" | x == "coefficient_deaths") {
+    if(x == "alpha_cases" | x == "alpha_deaths") {
       x <- "identity"
     } else {
       x <- "log10"
@@ -65,12 +60,31 @@ plot_standard_spatial_tfs <- function(
   # Graph structure (Data information)
   graph <- df_graph %>%
     ggplot() +
-    # Plot data
+    # Plot data (Cases)
     aes(
       x = df_graph %>% pull(end_date),
       y = df_graph %>% pull(variable_name),
-      colour = region
-    ) +
+      colour = paste0(region, " - cases")
+    ) %>%
+    geom_point(size = 2.1) +
+    aes(
+      x = df_graph %>% pull(end_date),
+      y = df_graph %>% pull(variable_name),
+      colour = paste0(region, " - cases")
+    ) %>%
+    geom_line(linewidth = line_size) +
+    # Plot data (Deaths)
+    aes(
+      x = df_graph %>% pull(end_date),
+      y = df_graph %>% pull(gsub("cases", "deaths", variable_name)),
+      colour = paste0(region, " - deaths")
+    ) %>%
+    geom_point(size = 2.1) +
+    aes(
+      x = df_graph %>% pull(end_date),
+      y = df_graph %>% pull(gsub("cases", "deaths", variable_name)),
+      colour = paste0(region, " - deaths")
+    ) %>%
     geom_line(linewidth = line_size) +
     # X- axis
     scale_x_date(
@@ -122,7 +136,7 @@ plot_standard_spatial_tfs <- function(
 }
 
 # Graph of spatial evolution of spatial TFS for cases and deaths ----
-plot_spatial_evolution <- function(
+plot_spatial_evolution_tfs <- function(
   df_spatial_tfs,
   font_size = 18,
   axes_title_relative_size = 0.7,
@@ -141,247 +155,133 @@ plot_spatial_evolution <- function(
   plot_height = 3563,
   dots_per_inch = 400
 ) {
-  # Plot Alpha evolution (Cases)
-  plot_alpha_cases <- plot_standard_spatial_tfs(
-    df_spatial_tfs = df_spatial_tfs,
-    variable_name = "alpha_cases",
-    font_size = font_size,
-    axes_title_relative_size = axes_title_relative_size,
-    axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
-    line_size = line_size,
-    date_breaks = date_breaks,
-    date_minor_breaks = date_minor_breaks,
-    n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_spatial_tfs %>%
-      filter(
-        date >= initial_date,
-        date <= final_date,
-        alpha_cases <
-          quantile(alpha_cases, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_cases >
-          quantile(alpha_cases, 0.05, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths <
-          quantile(alpha_deaths, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths >
-          quantile(alpha_deaths, 0.05, na.rm = TRUE) %>% as.numeric()
-      ) %>%
-      pull(alpha_cases) %>%
-      min(na.rm = TRUE),
-    final_y = df_spatial_tfs %>%
-      filter(
-        date >= initial_date,
-        date <= final_date,
-        alpha_cases <
-          quantile(alpha_cases, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_cases >
-          quantile(alpha_cases, 0.05, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths <
-          quantile(alpha_deaths, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths >
-          quantile(alpha_deaths, 0.05, na.rm = TRUE) %>% as.numeric()
-      ) %>%
-      pull(alpha_cases) %>%
-      max(na.rm = TRUE)
-  )
-  
-  # Plot Alpha evolution (Deaths)
-  plot_alpha_deaths <- plot_standard_spatial_tfs(
-    df_spatial_tfs = df_spatial_tfs,
-    variable_name = "alpha_deaths",
-    font_size = font_size,
-    axes_title_relative_size = axes_title_relative_size,
-    axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
-    line_size = line_size,
-    date_breaks = date_breaks,
-    date_minor_breaks = date_minor_breaks,
-    n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_spatial_tfs %>%
-      filter(
-        date >= initial_date,
-        date <= final_date,
-        alpha_cases <
-          quantile(alpha_cases, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_cases >
-          quantile(alpha_cases, 0.05, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths <
-          quantile(alpha_deaths, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths >
-          quantile(alpha_deaths, 0.05, na.rm = TRUE) %>% as.numeric()
-      ) %>%
-      pull(alpha_deaths) %>%
-      min(na.rm = TRUE),
-    final_y = df_spatial_tfs %>%
-      filter(
-        date >= initial_date,
-        date <= final_date,
-        alpha_cases <
-          quantile(alpha_cases, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_cases >
-          quantile(alpha_cases, 0.05, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths <
-          quantile(alpha_deaths, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths >
-          quantile(alpha_deaths, 0.05, na.rm = TRUE) %>% as.numeric()
-      ) %>%
-      pull(alpha_deaths) %>%
-      max(na.rm = TRUE)
-  )
-  
-  # Plot Coefficient evolution (Cases)
-  plot_coefficient_cases <- plot_standard_spatial_tfs(
-    df_spatial_tfs = df_spatial_tfs,
-    variable_name = "coefficient_cases",
-    font_size = font_size,
-    axes_title_relative_size = axes_title_relative_size,
-    axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
-    line_size = line_size,
-    date_breaks = date_breaks,
-    date_minor_breaks = date_minor_breaks,
-    n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_spatial_tfs %>%
-      filter(
-        date >= initial_date,
-        date <= final_date,
-        alpha_cases <
-          quantile(alpha_cases, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_cases >
-          quantile(alpha_cases, 0.05, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths <
-          quantile(alpha_deaths, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths >
-          quantile(alpha_deaths, 0.05, na.rm = TRUE) %>% as.numeric()
-      ) %>%
-      pull(coefficient_cases) %>%
-      min(na.rm = TRUE),
-    final_y = df_spatial_tfs %>%
-      filter(
-        date >= initial_date,
-        date <= final_date,
-        alpha_cases <
-          quantile(alpha_cases, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_cases >
-          quantile(alpha_cases, 0.05, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths <
-          quantile(alpha_deaths, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths >
-          quantile(alpha_deaths, 0.05, na.rm = TRUE) %>% as.numeric()
-      ) %>%
-      pull(coefficient_cases) %>%
-      max(na.rm = TRUE)
-  )
-  
-  # Plot Coefficient evolution (Deaths)
-  plot_coefficient_deaths <- plot_standard_spatial_tfs(
-    df_spatial_tfs = df_spatial_tfs,
-    variable_name = "coefficient_deaths",
-    font_size = font_size,
-    axes_title_relative_size = axes_title_relative_size,
-    axes_relative_size = axes_relative_size,
-    legend_cols = legend_cols,
-    line_size = line_size,
-    date_breaks = date_breaks,
-    date_minor_breaks = date_minor_breaks,
-    n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_spatial_tfs %>%
-      filter(
-        date >= initial_date,
-        date <= final_date,
-        alpha_cases <
-          quantile(alpha_cases, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_cases >
-          quantile(alpha_cases, 0.05, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths <
-          quantile(alpha_deaths, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths >
-          quantile(alpha_deaths, 0.05, na.rm = TRUE) %>% as.numeric()
-      ) %>%
-      pull(coefficient_deaths) %>%
-      min(na.rm = TRUE),
-    final_y = df_spatial_tfs %>%
-      filter(
-        date >= initial_date,
-        date <= final_date,
-        alpha_cases <
-          quantile(alpha_cases, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_cases >
-          quantile(alpha_cases, 0.05, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths <
-          quantile(alpha_deaths, 0.95, na.rm = TRUE) %>% as.numeric(),
-        alpha_deaths >
-          quantile(alpha_deaths, 0.05, na.rm = TRUE) %>% as.numeric()
-      ) %>%
-      pull(coefficient_deaths) %>%
-      max(na.rm = TRUE)
-  )
-  
   # Saving plots and data in a folder with input date
   output_folder <- paste0(output_path, "/", gsub("-", "", input_date))
   dir.create(output_folder)
   
+  for(i in df_spatial_tfs %>% distinct(region) %>% pull()) {
+    cat(paste0("- Plot Ensemble Fluctuation Scaling: ", i, "\n"))
+    
+    # Plot Alpha evolution
+    plot_alpha <- plot_standard_spatial_tfs(
+      df_spatial_tfs = df_spatial_tfs %>% filter(region == i),
+      variable_name = "alpha_cases",
+      font_size = font_size,
+      axes_title_relative_size = axes_title_relative_size,
+      axes_relative_size = axes_relative_size,
+      legend_cols = legend_cols,
+      line_size = line_size,
+      date_breaks = date_breaks,
+      date_minor_breaks = date_minor_breaks,
+      n_y_breaks = n_y_breaks,
+      initial_date = initial_date,
+      final_date = final_date,
+      initial_y = df_spatial_tfs %>%
+        filter(
+          region == i,
+          date >= initial_date,
+          date <= final_date
+        ) %>%
+        mutate(
+          minimum = pmin(alpha_cases, alpha_deaths),
+          maximum = pmax(alpha_cases, alpha_deaths)
+        ) %>%
+        pull(minimum) %>%
+        min(na.rm = TRUE),
+      final_y = df_spatial_tfs %>%
+        filter(
+          region == i,
+          date >= initial_date,
+          date <= final_date
+        ) %>%
+        mutate(
+          minimum = pmin(alpha_cases, alpha_deaths),
+          maximum = pmax(alpha_cases, alpha_deaths)
+        ) %>%
+        pull(maximum) %>%
+        max(na.rm = TRUE)
+    )
+    
+    # Plot Coefficient evolution
+    plot_coefficient <- plot_standard_spatial_tfs(
+      df_spatial_tfs = df_spatial_tfs %>% filter(region == i),
+      variable_name = "coefficient_cases",
+      font_size = font_size,
+      axes_title_relative_size = axes_title_relative_size,
+      axes_relative_size = axes_relative_size,
+      legend_cols = legend_cols,
+      line_size = line_size,
+      date_breaks = date_breaks,
+      date_minor_breaks = date_minor_breaks,
+      n_y_breaks = n_y_breaks,
+      initial_date = initial_date,
+      final_date = final_date,
+      initial_y = df_spatial_tfs %>%
+        filter(
+          region == i,
+          date >= initial_date,
+          date <= final_date
+        ) %>%
+        mutate(
+          minimum = pmin(coefficient_cases, coefficient_deaths),
+          maximum = pmax(coefficient_cases, coefficient_deaths)
+        ) %>%
+        pull(minimum) %>%
+        min(na.rm = TRUE),
+      final_y = df_spatial_tfs %>%
+        filter(
+          region == i,
+          date >= initial_date,
+          date <= final_date
+        ) %>%
+        mutate(
+          minimum = pmin(coefficient_cases, coefficient_deaths),
+          maximum = pmax(coefficient_cases, coefficient_deaths)
+        ) %>%
+        pull(maximum) %>%
+        max(na.rm = TRUE)
+    )
+    
+    if(save_plots == TRUE) {
+      # Alpha evolution
+      Cairo(
+        width = plot_width,
+        height = plot_height,
+        file = paste0(
+          output_folder,
+          "/plot_spatial_tfs_alpha_",
+          stri_trans_tolower(i),
+          ".png"
+        ),
+        type = "png", # tiff
+        bg = "white", # white or transparent depending on your requirement 
+        dpi = dots_per_inch,
+        units = "px"  # you can change to pixels, etc
+      )
+      plot(plot_alpha)
+      dev.off()
+      
+      # Coefficient evolution
+      Cairo(
+        width = plot_width,
+        height = plot_height,
+        file = paste0(
+          output_folder,
+          "/plot_spatial_tfs_coefficient_",
+          stri_trans_tolower(i),
+          ".png"
+          ),
+        type = "png", # tiff
+        bg = "white", # white or transparent depending on your requirement 
+        dpi = dots_per_inch,
+        units = "px"  # you can change to pixels, etc
+      )
+      plot(plot_coefficient)
+      dev.off()
+    }
+  }
+  
   if(save_plots == TRUE) {
-    # Alpha evolution (Cases)
-    Cairo(
-      width = plot_width,
-      height = plot_height,
-      file = paste0(output_folder, "/plot_spatial_tfs_alpha_cases.png"),
-      type = "png", # tiff
-      bg = "white", # white or transparent depending on your requirement 
-      dpi = dots_per_inch,
-      units = "px"  # you can change to pixels, etc
-    )
-    plot(plot_alpha_cases)
-    dev.off()
-    
-    # Alpha evolution (Deaths)
-    Cairo(
-      width = plot_width,
-      height = plot_height,
-      file = paste0(output_folder, "/plot_spatial_tfs_alpha_deaths.png"),
-      type = "png", # tiff
-      bg = "white", # white or transparent depending on your requirement 
-      dpi = dots_per_inch,
-      units = "px"  # you can change to pixels, etc
-    )
-    plot(plot_alpha_deaths)
-    dev.off()
-    
-    # Coefficient evolution (Cases)
-    Cairo(
-      width = plot_width,
-      height = plot_height,
-      file = paste0(output_folder, "/plot_spatial_tfs_coefficient_cases.png"),
-      type = "png", # tiff
-      bg = "white", # white or transparent depending on your requirement 
-      dpi = dots_per_inch,
-      units = "px"  # you can change to pixels, etc
-    )
-    plot(plot_coefficient_cases)
-    dev.off()
-    
-    # Coefficient evolution (Deaths)
-    Cairo(
-      width = plot_width,
-      height = plot_height,
-      file = paste0(output_folder, "/plot_spatial_tfs_coefficient_deaths.png"),
-      type = "png", # tiff
-      bg = "white", # white or transparent depending on your requirement 
-      dpi = dots_per_inch,
-      units = "px"  # you can change to pixels, etc
-    )
-    plot(plot_coefficient_deaths)
-    dev.off()
-    
     # Spatial TFS data obtained from power law regression
     write_csv(
       df_spatial_tfs,

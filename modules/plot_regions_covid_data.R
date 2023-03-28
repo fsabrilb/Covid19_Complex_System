@@ -19,7 +19,9 @@ plot_standard_count <- function(
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-01-30",
-  final_date = "2022-11-01"
+  final_date = "2022-11-01",
+  initial_drop = 17,
+  final_drop = 17
 ) {
   # Normalization to maximum count in every region
   df_count <- df_count %>%
@@ -40,6 +42,19 @@ plot_standard_count <- function(
       # Subregions with at least one case (death) during the pandemic
       cum_cases = count_act_sub_cum_cases / max_sub_cum_cases,
       cum_deaths = count_act_sub_cum_deaths / max_sub_cum_deaths
+    ) %>%
+    # Correct some anomalous data
+    mutate(
+      cum_cases = if_else(
+        region == "Spain" & date >= as.Date("2022-03-28"),
+        1,
+        cum_cases
+      ),
+      cum_deaths = if_else(
+        region == "Spain" & date >= as.Date("2022-03-28"),
+        1,
+        cum_deaths
+      )
     )
   
   # Graph structure (Data information)
@@ -51,7 +66,7 @@ plot_standard_count <- function(
       y = df_count %>% pull(variable_name),
       colour = paste0(region, " ", gsub("cum_", "", variable_name))
     ) +
-    geom_line(linewidth = line_size) +
+    geom_point(size = line_size) +
     # Axes
     scale_x_date(
       date_breaks = date_breaks, 
@@ -59,6 +74,7 @@ plot_standard_count <- function(
       sec.axis = dup_axis()
     ) +
     scale_y_continuous(n.breaks = n_y_breaks) +
+    scale_shape_manual(seq(df_count %>% distinct(region) %>% nrow())) +
     # Labels
     labs(
       x = "Date",
@@ -66,7 +82,10 @@ plot_standard_count <- function(
     ) +
     # Limits
     coord_cartesian(
-      xlim = c(as.Date(initial_date), as.Date(final_date)),
+      xlim = c(
+        as.Date(initial_date) + initial_drop,
+        as.Date(final_date) - final_drop
+      ),
       ylim = c(0, 1)
     )
   
@@ -114,6 +133,8 @@ plot_active_subregions <- function(
   n_y_breaks = 25,
   initial_date = "2020-01-30",
   final_date = "2022-11-01",
+  initial_drop = 17,
+  final_drop = 17,
   output_path = "./output_files",
   save_plots = FALSE,
   input_date = "2022-12-04",
@@ -134,7 +155,9 @@ plot_active_subregions <- function(
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
     initial_date = initial_date,
-    final_date = final_date
+    final_date = final_date,
+    initial_drop = initial_drop,
+    final_drop = final_drop
   )
   
   # Plot Deaths
@@ -150,7 +173,9 @@ plot_active_subregions <- function(
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
     initial_date = initial_date,
-    final_date = final_date
+    final_date = final_date,
+    initial_drop = initial_drop,
+    final_drop = final_drop
   )
   
   # Saving plots and data in a folder with input date

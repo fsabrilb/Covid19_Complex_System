@@ -117,7 +117,7 @@ generate_raw_data_world <- function(
 # Extract United States of America (USA) cases and deaths per state ----
 generate_raw_data_usa <- function(
   input_path_raw = "./input_files/raw_data",
-  url = "https://data.cdc.gov/api/views/9mfq-cb36/rows.csv?accessType=DOWNLOAD",
+  url = "https://data.cdc.gov/api/views/pwn4-m3yp/rows.csv?accessType=DOWNLOAD",
   saved_data = FALSE,
   input_path_data_dictionary = "./input_files/data_dictionary",
   states_dictionary_name = "usa_states.csv"
@@ -141,10 +141,10 @@ generate_raw_data_usa <- function(
     ) %>%
     # Normalization of columns names
     rename(
-      date = submission_date,
+      date = date_updated,
       names = state_name,
       cum_cases = tot_cases,
-      cum_deaths = tot_death,
+      cum_deaths = tot_deaths,
     ) %>%
     # Normalization of columns information
     mutate(
@@ -318,8 +318,8 @@ generate_raw_data_usa_states <- function(
   return(df_covid)
 }
 
-# Extract Brasil cases and deaths per state ----
-generate_raw_data_brasil <- function(
+# Extract Brazil cases and deaths per state ----
+generate_raw_data_brazil <- function(
   input_path_raw = "./input_files/raw_data",
   url = paste0(
     "https://raw.githubusercontent.com/wcota/covid19br/master/cases-brazil",
@@ -327,11 +327,11 @@ generate_raw_data_brasil <- function(
   ),
   saved_data = FALSE,
   input_path_data_dictionary = "./input_files/data_dictionary",
-  states_dictionary_name = "brasil_states.csv"
+  states_dictionary_name = "brazil_states.csv"
 ) {
   # Download Covid data
   if(saved_data == FALSE) {
-    download.file(url, destfile = paste0(input_path_raw, "/data_brasil.csv"))
+    download.file(url, destfile = paste0(input_path_raw, "/data_brazil.csv"))
   }
   
   # Data dictionary loading
@@ -340,7 +340,7 @@ generate_raw_data_brasil <- function(
   )
   
   # Covid data generation
-  df_covid <- fread(paste0(input_path_raw, "/data_brasil.csv")) %>%
+  df_covid <- fread(paste0(input_path_raw, "/data_brazil.csv")) %>%
     # Normalization of columns names
     rename_at(
       all_of(c("newDeaths", "deaths", "newCases", "totalCases")),
@@ -355,7 +355,7 @@ generate_raw_data_brasil <- function(
     # Normalization of columns information
     mutate(
       date = as.Date(date),
-      region = "Brasil",
+      region = "Brazil",
       subregion = "State",
       cases = if_else(is.na(cases), 0, as.numeric(cases)),
       cum_cases = if_else(is.na(cum_cases), 0, as.numeric(cum_cases)),
@@ -572,7 +572,7 @@ generate_raw_data_india <- function(
   return(df_covid)
 }
 
-# Extract India cases and deaths per state ----
+# Extract Colombia cases and deaths per municipality ----
 generate_raw_data_colombia <- function(
   input_path_raw = "./input_files/raw_data",
   url = paste0(
@@ -637,6 +637,7 @@ generate_raw_data_colombia <- function(
       deaths = if_else(is.na(deaths), 0, as.numeric(deaths)),
     ) %>%
     # Correct reconstruction of cases and deaths
+    arrange(names, date) %>%
     group_by(names) %>%
     mutate(
       cum_cases = cumsum(cases),
@@ -665,7 +666,7 @@ generate_all_covid_data <- function(
   input_path_raw = "./input_files/raw_data",
   url_world = "https://covid.ourworldindata.org/data/owid-covid-data.csv",
   url_usa = 
-    "https://data.cdc.gov/api/views/9mfq-cb36/rows.csv?accessType=DOWNLOAD",
+    "https://data.cdc.gov/api/views/pwn4-m3yp/rows.csv?accessType=DOWNLOAD",
   url_usa_county_cases = paste0(
     "https://static.usafacts.org/public/data/covid-19/covid_confirmed_usa",
     "facts.csv?_ga=2.172812709.72077348.1638840631-572244296.1638840631"
@@ -674,7 +675,7 @@ generate_all_covid_data <- function(
     "https://static.usafacts.org/public/data/covid-19/covid_deaths_usa",
     "facts.csv?_ga=2.210027667.72077348.1638840631-572244296.1638840631"
   ),
-  url_brasil = paste0(
+  url_brazil = paste0(
     "https://raw.githubusercontent.com/wcota/covid19br/master/cases-brazil",
     "-states.csv"
   ),
@@ -694,14 +695,14 @@ generate_all_covid_data <- function(
   saved_world_data = FALSE,
   saved_usa_data = FALSE,
   saved_usa_county_data = FALSE,
-  saved_brasil_data = FALSE,
+  saved_brazil_data = FALSE,
   saved_europe_data = FALSE,
   saved_spain_data = FALSE,
   saved_india_data = FALSE,
   saved_colombia_data = FALSE,
   input_path_data_dictionary = "./input_files/data_dictionary",
   usa_states_dictionary_name = "usa_states.csv",
-  brasil_states_dictionary_name = "brasil_states.csv",
+  brazil_states_dictionary_name = "brazil_states.csv",
   spain_provinces_dictionary_name = "spain_provinces.csv",
   leaked_usa_state_names = c(
     "Georgia",
@@ -732,12 +733,12 @@ generate_all_covid_data <- function(
         input_path_data_dictionary = input_path_data_dictionary,
         states_dictionary_name = usa_states_dictionary_name
       ),
-      generate_raw_data_brasil(
+      generate_raw_data_brazil(
         input_path_raw = input_path_raw,
-        url = url_brasil,
-        saved_data = saved_brasil_data,
+        url = url_brazil,
+        saved_data = saved_brazil_data,
         input_path_data_dictionary = input_path_data_dictionary,
-        states_dictionary_name = brasil_states_dictionary_name
+        states_dictionary_name = brazil_states_dictionary_name
       ),
       generate_raw_data_europe(
         input_path_raw = input_path_raw,

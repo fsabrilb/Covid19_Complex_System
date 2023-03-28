@@ -30,8 +30,8 @@ prepare_theil_covid_data <- function(
     mutate(index = cumsum(c(0, diff(date))) + 1) %>%
     ungroup() %>%
     # Selection of variable name
-    select_at(all_of(
-      c("region", "subregion", "date", "index", variable_name)),
+    select_at(
+      all_of(c("region", "subregion", "date", "index", variable_name)),
       rename_variable
     )
   
@@ -105,12 +105,11 @@ estimate_entropy_indexes_regions <- function(
   ) %dopar% {
     # Log output for monitoring progress
     if(verbose >= 1){
-      setwd(path)
       cat(
         paste0(
           "Estimate Theil for region ", i, "\n"
         ),
-        file = "log_theil_covid_regions.txt",
+        file = paste0(path, "/log_theil_covid_regions.txt"),
         append = TRUE
       )
     }
@@ -177,10 +176,9 @@ estimate_entropy_indexes_covid <- function(
     ) %dopar% {
       # Log output for monitoring progress
       if(verbose >= 1){
-        setwd(path)
         cat(
           paste0("Estimate Theil for date ", i, "\n"),
-          file = "log_theil_covid_dates.txt",
+          file = paste0(path, "/log_theil_covid_dates.txt"),
           append = TRUE
         )
       }
@@ -238,7 +236,7 @@ estimate_entropy_indexes_covid <- function(
         ".csv"
       ),
       encoding = "UTF-8"
-    )
+    ) %>% mutate(date = as.Date(date))
   }
   
   return(df_entropy)

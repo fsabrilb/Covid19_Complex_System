@@ -32,8 +32,8 @@ prepare_tfs_covid_data <- function(
     mutate(index = cumsum(c(0, diff(date))) + 1) %>%
     ungroup() %>%
     # Selection of variable name
-    select_at(all_of(
-      c("region", "subregion", "date", "index", variable_name)),
+    select_at(
+      all_of(c("region", "subregion", "date", "index", variable_name)),
       rename_variable
     ) %>%
     estimate_tfs_data()
@@ -88,12 +88,11 @@ estimate_tfs_regions <- function(
   ) %dopar% {
     # Log output for monitoring progress
     if(verbose >= 1){
-      setwd(path)
       cat(
         paste0(
           "Estimate Temporal Fluctuation Scaling for region ", i, "\n"
         ),
-        file = "log_tfs_regions.txt",
+        file = paste0(path, "/log_tfs_regions.txt"),
         append = TRUE
       )
     }
@@ -162,10 +161,9 @@ estimate_tfs_covid <- function(
     ) %dopar% {
       # Log output for monitoring progress
       if(verbose >= 1){
-        setwd(path)
         cat(
           paste0("Estimate Temporal Fluctuation Scaling for date ", i, "\n"),
-          file = "log_tfs_covid_dates.txt",
+          file = paste0(path, "/log_tfs_covid_dates.txt"),
           append = TRUE
         )
       }
@@ -221,7 +219,7 @@ estimate_tfs_covid <- function(
         ".csv"
       ),
       encoding = "UTF-8"
-    )
+    ) %>% mutate(date = as.Date(date))
   }
   
   return(df_tfs_parameters)
@@ -251,7 +249,18 @@ get_tfs_covid_resume <- function(
         tfs_exponent_sd = tfs_exponent
       ),
     by = c("region", "subregion", "date")
-  ) %>% mutate(information = "cases")
+  ) %>%
+    left_join(
+      df_tfs_cases %>%
+        filter(statistic == "R2") %>%
+        select(-statistic) %>%
+        rename(
+          tfs_coefficient_r2 = tfs_coefficient,
+          tfs_exponent_r2 = tfs_exponent
+        ),
+      by = c("region", "subregion", "date")
+    ) %>%
+    mutate(information = "cases")
   
   # Deaths
   df_tfs_deaths <- left_join(
@@ -272,7 +281,18 @@ get_tfs_covid_resume <- function(
         tfs_exponent_sd = tfs_exponent
       ),
     by = c("region", "subregion", "date")
-  ) %>% mutate(information = "deaths")
+  ) %>%
+    left_join(
+      df_tfs_deaths %>%
+        filter(statistic == "R2") %>%
+        select(-statistic) %>%
+        rename(
+          tfs_coefficient_r2 = tfs_coefficient,
+          tfs_exponent_r2 = tfs_exponent
+        ),
+      by = c("region", "subregion", "date")
+    ) %>%
+    mutate(information = "deaths")
   
   # Final merge
   df_tfs_resume <- df_tfs_cases %>%

@@ -15,7 +15,7 @@ plot_standard_correlation <- function(
   axes_title_relative_size = 0.7,
   axes_relative_size = 0.6,
   legend_cols = 7,
-  line_size = 1.1,
+  line_size = 0.8,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_x_breaks = 20,
@@ -139,6 +139,12 @@ plot_standard_correlation <- function(
       colour = region
     ) +
     geom_line(linewidth = line_size) +
+    aes(
+      x = df_graph %>% pull(var_x(variable_name)),
+      y = df_graph %>% pull(variable_name),
+      colour = region
+    ) +
+    geom_point(shape = 16, size = 2.4) +
     # Labels
     labs(
       x = title_x(variable_name),
@@ -189,7 +195,7 @@ plot_correlation_data <- function(
   axes_title_relative_size = 0.7,
   axes_relative_size = 0.6,
   legend_cols = 7,
-  line_size = 1.1,
+  line_size = 0.8,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_x_breaks = 20,

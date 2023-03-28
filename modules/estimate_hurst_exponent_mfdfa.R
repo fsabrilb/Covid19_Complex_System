@@ -117,7 +117,6 @@ get_trend_mfdfa <- function(
     ) %dopar% {
       # Log output for monitoring progress
       if(verbose >= 1){
-        setwd(path)
         cat(
           paste0(
             "Finish process in positive loop, window ",
@@ -126,7 +125,7 @@ get_trend_mfdfa <- function(
             window_size,
             "\n"
           ),
-          file = "log_hurst_mfdfa_trend.txt",
+          file = paste0(path, "/log_hurst_mfdfa_trend.txt"),
           append = TRUE
         )
       }
@@ -181,7 +180,6 @@ get_trend_mfdfa <- function(
       ) %dopar% {
         # Log output for monitoring progress
         if(verbose >= 1){
-          setwd(path)
           cat(
             paste0(
               "Finish process in negative loop, window ",
@@ -190,7 +188,7 @@ get_trend_mfdfa <- function(
               window_size,
               "\n"
             ),
-            file = "log_hurst_mfdfa_trend.txt",
+            file = paste0(path, "/log_hurst_mfdfa_trend.txt"),
             append = TRUE
           )
         }
@@ -243,19 +241,49 @@ get_trend_mfdfa <- function(
 
 # q-th order fluctuation in Multifractal Detrended Fluctuation Analysis ----
 calculate_fluctuation <- function(df_dfa_residuals, q_order = 2) {
-  df_fluctuation <- df_dfa_residuals %>%
-    distinct(window_size, window_number, biased_variance, unbiased_variance) %>%
-    group_by(window_size) %>%
-    summarise(
-      biased_fluctuation =
-        (sum(biased_variance^(q_order / 2), na.rm = TRUE) /
-           max(window_number, na.rm = TRUE))^(1 / q_order),
-      unbiased_fluctuation =
-        (sum(unbiased_variance^(q_order / 2), na.rm = TRUE) /
-           max(window_number, na.rm = TRUE))^(1 / q_order)
-    ) %>%
-    mutate(order = q_order) %>%
-    relocate(order)
+  if(q_order != 0) {
+    df_fluctuation <- df_dfa_residuals %>%
+      distinct(
+        window_size,
+        window_number,
+        biased_variance,
+        unbiased_variance
+      ) %>%
+      group_by(window_size) %>%
+      summarise(
+        biased_fluctuation =
+          (sum(biased_variance^(q_order / 2), na.rm = TRUE) /
+             max(window_number, na.rm = TRUE))^(1 / q_order),
+        unbiased_fluctuation =
+          (sum(unbiased_variance^(q_order / 2), na.rm = TRUE) /
+             max(window_number, na.rm = TRUE))^(1 / q_order)
+      ) %>%
+      mutate(order = q_order) %>%
+      relocate(order)
+  } else {
+    df_fluctuation <- df_dfa_residuals %>%
+      distinct(
+        window_size,
+        window_number,
+        biased_variance,
+        unbiased_variance
+      ) %>%
+      group_by(window_size) %>%
+      summarise(
+        biased_fluctuation = exp(
+          0.5 *
+            sum(log(abs(biased_variance^2)), na.rm = TRUE) /
+            max(window_number, na.rm = TRUE)
+        ),
+        unbiased_fluctuation = exp(
+          0.5 *
+            sum(log(abs(unbiased_variance^2)), na.rm = TRUE) /
+            max(window_number, na.rm = TRUE)
+        )
+      ) %>%
+      mutate(order = q_order) %>%
+      relocate(order)
+  }
   
   return(df_fluctuation)
 }
@@ -265,6 +293,8 @@ estimate_hurst_mfdfa <- function(
   df_time_series,
   dfa_degree = 1,
   q_order = 2,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   path = "/home/ASIS/Temp_Felipe",
   verbose = 1
@@ -283,8 +313,8 @@ estimate_hurst_mfdfa <- function(
     # Selection of windows size
     loop_index <- df_time_series %>%
       filter(
-        index >= 0.52 * sqrt(nrow(df_time_series)), 
-        index < 2.72 * sqrt(nrow(df_time_series)),
+        index >= scale_min * nrow(df_time_series), 
+        index < scale_max * nrow(df_time_series),
         index %% n_step == 0
       ) %>%
       distinct(index) %>%
@@ -365,6 +395,8 @@ estimate_hurst_brownian_path_mfdfa <- function(
   df_brownian_path,
   dfa_degree = 1,
   q_order = 2,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   path = "/home/ASIS/Temp_Felipe",
   verbose = 1
@@ -397,6 +429,8 @@ estimate_hurst_brownian_path_mfdfa <- function(
       df_time_series = df_brownian_path %>% filter(simulation == i),
       dfa_degree = dfa_degree,
       q_order = q_order,
+      scale_min = scale_min,
+      scale_max = scale_max,
       n_step = n_step,
       path = path,
       verbose = verbose
@@ -404,10 +438,9 @@ estimate_hurst_brownian_path_mfdfa <- function(
     
     # Log output for monitoring progress
     if(verbose >= 1){
-      setwd(path)
       cat(
         paste0("Estimated Hurst for simulation of Brownian path: ", i, "\n"),
-        file = "log_hurst_normal_mfdfa.txt",
+        file = paste0(path, "/log_hurst_normal_mfdfa.txt"),
         append = TRUE
       )
     }
@@ -442,6 +475,8 @@ estimate_excess_hurst_brownian_path_mfdfa <- function(
   sd = 1,
   dfa_degree = 1,
   q_order = 2,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   path = "/home/ASIS/Temp_Felipe",
   verbose = 1,
@@ -487,14 +522,13 @@ estimate_excess_hurst_brownian_path_mfdfa <- function(
       
       # Log output for monitoring progress
       if(verbose >= 1){
-        setwd(path)
         cat(
           paste0(
             "------------ Length of Brownian path: ",
             n_length_vector[i],
             " ------------\n"
           ),
-          file = "log_hurst_optimum_mfdfa.txt",
+          file = paste0(path, "/log_hurst_optimum_mfdfa.txt"),
           append = TRUE
         )
       }
@@ -504,6 +538,8 @@ estimate_excess_hurst_brownian_path_mfdfa <- function(
         df_brownian_path = df_brownian_path,
         dfa_degree = dfa_degree,
         q_order = q_order,
+        scale_min = scale_min,
+        scale_max = scale_max,
         n_step = n_step,
         path = path,
         verbose = verbose
@@ -648,6 +684,8 @@ get_multiscaling_exponents_mfdfa <- function(
   df_time_series,
   dfa_degree = 1,
   q_order_vector,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   path = "/home/ASIS/Temp_Felipe",
   verbose = 1
@@ -677,6 +715,8 @@ get_multiscaling_exponents_mfdfa <- function(
       df_time_series = df_time_series,
       dfa_degree = dfa_degree,
       q_order = i,
+      scale_min = scale_min,
+      scale_max = scale_max,
       n_step = n_step,
       path = path,
       verbose = verbose
@@ -684,10 +724,9 @@ get_multiscaling_exponents_mfdfa <- function(
     
     # Log output for monitoring progress
     if(verbose >= 1){
-      setwd(path)
       cat(
         paste0("Estimated Hurst for q-order: ", i, "\n"),
-        file = "log_hurst_multiscaling_exponents_mfdfa.txt",
+        file = paste0(path, "/log_hurst_multiscaling_exponents_mfdfa.txt"),
         append = TRUE
       )
     }

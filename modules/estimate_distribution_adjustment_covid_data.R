@@ -213,16 +213,100 @@ optimize_log_likelihood <- function(
   return(df_adjustment)
 }
 
+# Optimize log-likelihood function for Burr parameters of adjustment ----
+optimize_log_likelihood_burr <- function(x, distribution_name) {
+  if(distribution_name == "burr") {
+    fit <- vglm(x ~ 1, paretoIV, trace = FALSE)
+    df_adjustment <- Coef(fit) %>%
+      t() %>%
+      data.table() %>%
+      cbind(data.table(aic = AICvlm(fit), bic = BICvlm(fit))) %>%
+      pivot_longer(
+        cols = everything(),
+        names_to = "variable_name",
+        values_to = "value"
+      ) %>%
+      mutate(
+        distribution_name = distribution_name,
+        value = if_else(
+          variable_name == "inequality",
+          if_else(value == 0, 0, 1/value),
+          value
+        )
+      )
+  }
+  if(distribution_name == "gamma") {
+    fit <- vglm(x ~ 1, gamma2, trace = FALSE)
+    df_adjustment <- Coef(fit) %>%
+      t() %>%
+      data.table() %>%
+      cbind(data.table(aic = AICvlm(fit), bic = BICvlm(fit))) %>%
+      pivot_longer(
+        cols = everything(),
+        names_to = "variable_name",
+        values_to = "value"
+      ) %>%
+      mutate(
+        distribution_name = distribution_name,
+        variable_name = if_else(
+          variable_name == "mu",
+          "scale",
+          variable_name
+        )
+      )
+  }
+  if(distribution_name == "lognormal") {
+    fit <- vglm(x ~ 1, lognormal, trace = TRUE)
+    df_adjustment <- Coef(fit) %>%
+      t() %>%
+      data.table() %>%
+      cbind(data.table(aic = AICvlm(fit), bic = BICvlm(fit))) %>%
+      pivot_longer(
+        cols = everything(),
+        names_to = "variable_name",
+        values_to = "value"
+      ) %>%
+      mutate(distribution_name = distribution_name)
+  }
+  if(distribution_name == "weibull") {
+    fit <- vglm(x ~ 1, weibullR, trace = FALSE)
+    df_adjustment <- Coef(fit) %>%
+      t() %>%
+      data.table() %>%
+      cbind(data.table(aic = AICvlm(fit), bic = BICvlm(fit))) %>%
+      pivot_longer(
+        cols = everything(),
+        names_to = "variable_name",
+        values_to = "value"
+      )
+  }
+  
+  df_adjustment <- df_adjustment %>% data.table()
+  
+  return(df_adjustment)
+}
+
 # Adjust cumulative daily cases and deaths over subregion on specific date ----
 fit_spatial_distribution <- function(
   df_covid,
   filter_day,
   tolerance_optimization = .Machine %>% pluck("double.eps") * 1e6,
+  df_matrix_selection,
   verbose = 1
 ) {
   df_fit <- df_covid %>%
+    # Union of selection matrix for adjustment per date
+    left_join(
+      df_matrix_selection,
+      by = c("region", "date")
+    ) %>%
     # Exclude non-zero data and select day for adjustment
-    filter(cum_cases != 0, cum_deaths != 0, date == filter_day)
+    filter(
+      cum_cases != 0,
+      cum_deaths != 0,
+      date == filter_day,
+      value == "TRUE"
+    )
   
   # Loop over regions
   df_spatial_adjustment <- data.table()
@@ -231,16 +315,17 @@ fit_spatial_distribution <- function(
       bind_rows(
         bind_rows(
           # Adjustment of Cumulative Cases to Burr distribution
-          optimize_log_likelihood(
-            x = df_fit %>% filter(region == i) %>% pull(cum_cases),
-            distribution_name = "burr",
-            tolerance_optimization = tolerance_optimization
+          optimize_log_likelihood_burr(
+            x = df_fit %>%
+              filter(region == i) %>%
+              mutate(cum_cases = cum_cases + mean(cum_cases, na.rm = TRUE)) %>%
+              pull(cum_cases),
+            distribution_name = "burr"
           ) %>% mutate(information = "cum_cases"),
           # Adjustment of Cumulative Cases to Gamma distribution
-          optimize_log_likelihood(
+          optimize_log_likelihood_burr(
             x = df_fit %>% filter(region == i) %>% pull(cum_cases),
-            distribution_name = "gamma",
-            tolerance_optimization = tolerance_optimization
+            distribution_name = "gamma"
           ) %>% mutate(information = "cum_cases"),
           # Adjustment of Cumulative Cases to Log-normal distribution
           optimize_log_likelihood(
@@ -248,17 +333,25 @@ fit_spatial_distribution <- function(
             distribution_name = "lognormal",
             tolerance_optimization = tolerance_optimization
           ) %>% mutate(information = "cum_cases"),
+          # Adjustment of Cumulative Cases to Weibull distribution
+          optimize_log_likelihood_burr(
+            x = df_fit %>% filter(region == i) %>% pull(cum_cases),
+            distribution_name = "weibull"
+          ) %>% mutate(information = "cum_cases"),
           # Adjustment of Cumulative Deaths to Burr distribution
-          optimize_log_likelihood(
-            x = df_fit %>% filter(region == i) %>% pull(cum_deaths),
-            distribution_name = "burr",
-            tolerance_optimization = tolerance_optimization
+          optimize_log_likelihood_burr(
+            x = df_fit %>%
+              filter(region == i) %>%
+              mutate(
+                cum_deaths = cum_deaths + mean(cum_deaths, na.rm = TRUE)
+              ) %>%
+              pull(cum_deaths),
+            distribution_name = "burr"
           ) %>% mutate(information = "cum_deaths"),
           # Adjustment of Cumulative Deaths to Gamma distribution
-          optimize_log_likelihood(
+          optimize_log_likelihood_burr(
             x = df_fit %>% filter(region == i) %>% pull(cum_deaths),
-            distribution_name = "gamma",
-            tolerance_optimization = tolerance_optimization
+            distribution_name = "gamma"
           ) %>% mutate(information = "cum_deaths"),
           # Adjustment of Cumulative Deaths to Log-normal distribution
           optimize_log_likelihood(
@@ -298,6 +391,7 @@ fit_spatial_evolution <- function(
   df_covid,
   days_vector,
   tolerance_optimization = .Machine %>% pluck("double.eps") * 1e6,
+  df_matrix_selection,
   verbose = 1,
   saved_all_data = FALSE,
   input_path_processed = "./input_files/processed_data",
@@ -325,6 +419,7 @@ fit_spatial_evolution <- function(
             df_covid = df_covid,
             filter_day = i,
             tolerance_optimization = tolerance_optimization,
+            df_matrix_selection = df_matrix_selection,
             verbose = verbose
           )
         )
@@ -367,4 +462,125 @@ fit_spatial_evolution <- function(
   }
   
   return(df_adjustment)
+}
+
+# Estimate coupling of lognormal parameters between cases and deaths ----
+estimate_coupling <- function(
+  df_spatial_adjustment,
+  output_path = "./output_files",
+  save_data = FALSE,
+  input_date = "2022-12-04"
+) {
+  df_parameters <- data.table()
+  
+  # Meanlog
+  for(i in df_spatial_adjustment %>% distinct(region) %>% pull()) {
+    # Linear regression between meanlog parameters
+    list_aux <- lm(
+      df_spatial_adjustment %>%
+        filter(
+          region == i,
+          information == "cum_deaths",
+          distribution_name == "lognormal"
+        ) %>%
+        pull(meanlog) ~
+        df_spatial_adjustment %>%
+        filter(
+          region == i,
+          information == "cum_cases",
+          distribution_name == "lognormal"
+        ) %>%
+        pull(meanlog)
+    ) %>%
+      summary()
+    
+    # Coefficients of regression
+    df_aux <- list_aux %>%
+      pluck("coefficients") %>%
+      t() %>%
+      data.table() %>%
+      rename_all(function(x) {c("coefficient", "slope")}) %>%
+      mutate(
+        statistic = c("Estimate", "Standard error", "t value", "Pr(>|t|)")
+      ) %>%
+      mutate(region = i, information = "meanlog") %>%
+      relocate(region, statistic)
+    
+    # Coefficient of determination R2
+    rsquared <- list_aux %>% pluck("r.squared")
+    
+    df_parameters <- df_parameters %>%
+      bind_rows(
+        df_aux,
+        data.table(
+          region = i,
+          statistic = "R2",
+          coefficient = rsquared,
+          slope = rsquared,
+          information = "meanlog"
+        )
+      )
+  }
+  
+  # Sdlog
+  for(i in df_spatial_adjustment %>% distinct(region) %>% pull()) {
+    # Linear regression between sdlog parameters
+    list_aux <- lm(
+      df_spatial_adjustment %>%
+        filter(
+          region == i,
+          information == "cum_deaths",
+          distribution_name == "lognormal"
+        ) %>%
+        pull(sdlog) ~
+        df_spatial_adjustment %>%
+        filter(
+          region == i,
+          information == "cum_cases",
+          distribution_name == "lognormal"
+        ) %>%
+        pull(sdlog)
+    ) %>%
+      summary()
+    
+    # Coefficients of regression
+    df_aux <- list_aux %>%
+      pluck("coefficients") %>%
+      t() %>%
+      data.table() %>%
+      rename_all(function(x) {c("coefficient", "slope")}) %>%
+      mutate(
+        statistic = c("Estimate", "Standard error", "t value", "Pr(>|t|)")
+      ) %>%
+      mutate(region = i, information = "sdlog") %>%
+      relocate(region, statistic)
+    
+    # Coefficient of determination R2
+    rsquared <- list_aux %>% pluck("r.squared")
+    
+    df_parameters <- df_parameters %>%
+      bind_rows(
+        df_aux,
+        data.table(
+          region = i,
+          statistic = "R2",
+          coefficient = rsquared,
+          slope = rsquared,
+          information = "sdlog"
+        )
+      )
+  }
+  
+  # Saving plots and data in a folder with input date
+  output_folder <- paste0(output_path, "/", gsub("-", "", input_date))
+  dir.create(output_folder)
+  
+  if(save_data == TRUE) {
+    write_csv(
+      df_parameters,
+      paste0(output_folder, "/df_spatially_adjustment_parameters_coupling.csv")
+    )
+  }
+  
+  return(df_parameters)
 }

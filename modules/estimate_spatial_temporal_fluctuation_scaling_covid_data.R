@@ -47,29 +47,29 @@ estimate_spatial_tfs <- function(
               # Estimate Spatial TFS parameters (regression to power law)
               group_by(region, subregion, start_date, end_date) %>%
               mutate(
-                coefficient_cases = 2 * cov(
+                alpha_cases = 2 * cov(
                   x = log(mean_cum_cases),
                   y = log(sd_cum_cases),
                   use = "complete.obs"
                 ) / var(log(mean_cum_cases), na.rm = TRUE),
-                coefficient_deaths = 2 * cov(
+                alpha_deaths = 2 * cov(
                   x = log(mean_cum_deaths),
                   y = log(sd_cum_deaths),
                   use = "complete.obs"
                 ) / var(log(mean_cum_deaths), na.rm = TRUE)
               ) %>%
               mutate(
-                alpha_cases = exp(
+                coefficient_cases = exp(
                   2 * (
                     mean(log(sd_cum_cases), na.rm = TRUE) -
-                      coefficient_cases *
+                      alpha_cases *
                       mean(log(mean_cum_cases), na.rm = TRUE)
                   )
                 ),
-                alpha_deaths = exp(
+                coefficient_deaths = exp(
                   2 * (
                     mean(log(sd_cum_deaths), na.rm = TRUE) -
-                      coefficient_deaths *
+                      alpha_deaths *
                       mean(log(mean_cum_deaths), na.rm = TRUE)
                   )
                 ),

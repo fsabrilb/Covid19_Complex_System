@@ -25,7 +25,41 @@ plot_standard_tfs <- function(
   final_y = 1
 ) {
   # Temporal Fluctuation Scaling values per cases and deaths
-  df_graph <- df_tfs_covid %>% filter(information == information_name)
+  df_graph <- df_tfs_covid %>%
+    filter(information == information_name) %>%
+    group_by(region) %>%
+    mutate(
+      increase_tfs_coefficient = tfs_coefficient_value -
+        min(tfs_coefficient_value, na.rm = TRUE),
+      rank_tfs_coefficient = max(tfs_coefficient_value, na.rm = TRUE) -
+        min(tfs_coefficient_value, na.rm = TRUE),
+      increase_tfs_exponent = tfs_exponent_value -
+        min(tfs_exponent_value, na.rm = TRUE),
+      rank_tfs_exponent = max(tfs_exponent_value, na.rm = TRUE) -
+        min(tfs_exponent_value, na.rm = TRUE)
+    ) %>%
+    mutate(
+      tfs_coefficient_value = increase_tfs_coefficient / rank_tfs_coefficient,
+      tfs_exponent_value = increase_tfs_exponent / rank_tfs_exponent,
+      tfs_coefficient_sd = tfs_coefficient_sd / rank_tfs_coefficient,
+      tfs_exponent_sd = tfs_exponent_sd / rank_tfs_exponent
+    ) %>%
+    ungroup()
+  
+  # Auxiliar function for Y title
+  rename_ytitle <- function(variable_name) {
+    if(variable_name == "tfs_coefficient_value") {
+      x <- "Normalized logarithm of TFS coefficient"
+    } else {
+      x <- "Normalized TFS exponent"
+    }
+    x <- paste0(
+      x,
+      " - ",
+      stri_trans_totitle(information_name)
+    )
+    return(x)
+  }
   
   # Graph structure (Data information)
   graph <- df_graph %>%
@@ -37,6 +71,16 @@ plot_standard_tfs <- function(
       colour = region
     ) %>%
     geom_point(size = line_size) +
+    # Error bars (variable)
+    aes(
+      x = date,
+      ymin = df_graph %>% pull(variable_name) -
+        df_graph %>% pull(gsub("value", "sd", variable_name)),
+      ymax = df_graph %>% pull(variable_name) +
+        df_graph %>% pull(gsub("value", "sd", variable_name)),
+      fill = region
+    ) %>%
+    geom_ribbon(alpha = 0.09) +
     # X- axis
     scale_x_date(
       date_breaks = date_breaks, 
@@ -48,11 +92,7 @@ plot_standard_tfs <- function(
     # Labels
     labs(
       x = "Date",
-      y = paste0(
-        gsub("_", " ", stri_trans_totitle(variable_name)),
-        " ",
-        information_name
-      )
+      y = rename_ytitle(variable_name = variable_name)
     ) +
     # Limits
     coord_cartesian(
@@ -103,6 +143,8 @@ plot_tfs_data <- function(
   n_y_breaks = 25,
   initial_date = "2020-03-30",
   final_date = "2022-11-01",
+  initial_drop_days = 30,
+  final_drop_days = 30,
   output_path = "./output_files",
   save_plots = FALSE,
   input_date = "2022-12-04",
@@ -123,16 +165,10 @@ plot_tfs_data <- function(
     date_breaks = date_breaks,
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_tfs_covid %>%
-      filter(information == "cases") %>%
-      pull(variable_name) %>%
-      min(na.rm = TRUE),
-    final_y = df_tfs_covid %>%
-      filter(information == "cases") %>%
-      pull(variable_name) %>%
-      max(na.rm = TRUE)
+    initial_date = as.Date(initial_date) + initial_drop_days,
+    final_date = as.Date(final_date) - final_drop_days,
+    initial_y = 0,
+    final_y = 1
   )
   
   # Plot Temporal Fluctuation Scaling deaths
@@ -148,16 +184,10 @@ plot_tfs_data <- function(
     date_breaks = date_breaks,
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
-    initial_y = df_tfs_covid %>%
-      filter(information == "deaths") %>%
-      pull(variable_name) %>%
-      min(na.rm = TRUE),
-    final_y = df_tfs_covid %>%
-      filter(information == "deaths") %>%
-      pull(variable_name) %>%
-      max(na.rm = TRUE)
+    initial_date = as.Date(initial_date) + initial_drop_days,
+    final_date = as.Date(final_date) - final_drop_days,
+    initial_y = 0,
+    final_y = 1
   )
   
   # Saving plots and data in a folder with input date
@@ -211,6 +241,49 @@ plot_tfs_data <- function(
       paste0(
         output_folder,
         "/df_tfs_data_",
+        fixed_window,
+        ".csv"
+      )
+    )
+    
+    # Temporal Fluctuation Scaling Statistical significance with R2
+    write_csv(
+      df_tfs_covid %>%
+        group_by(region, subregion, information) %>%
+        mutate(
+          min_tfs_coefficient = min(tfs_coefficient_value, na.rm = TRUE),
+          max_tfs_coefficient = max(tfs_coefficient_value, na.rm = TRUE),
+          min_tfs_exponent = min(tfs_exponent_value, na.rm = TRUE),
+          max_tfs_exponent = max(tfs_exponent_value, na.rm = TRUE)
+        ) %>%
+        summarise(
+          min_tfs_coefficient = mean(min_tfs_coefficient, na.rm = TRUE),
+          max_tfs_coefficient = mean(max_tfs_coefficient, na.rm = TRUE),
+          min_tfs_exponent = mean(min_tfs_exponent, na.rm = TRUE),
+          max_tfs_exponent = mean(max_tfs_exponent, na.rm = TRUE),
+          tfs_r2_99 = quantile(
+            tfs_exponent_r2,
+            na.rm = TRUE,
+            probs = c(0.01),
+            names = FALSE
+          ),
+          tfs_r2_95 = quantile(
+            tfs_exponent_r2,
+            na.rm = TRUE,
+            probs = c(0.05),
+            names = FALSE
+          ),
+          tfs_r2_90 = quantile(
+            tfs_exponent_r2,
+            na.rm = TRUE,
+            probs = c(0.10),
+            names = FALSE
+          )
+        ) %>%
+        ungroup(),
+      paste0(
+        output_folder,
+        "/df_tfs_resume_data_",
         fixed_window,
         ".csv"
       )

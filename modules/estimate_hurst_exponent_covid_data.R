@@ -33,8 +33,8 @@ prepare_hurst_covid_data <- function(
     mutate(index = cumsum(c(0, diff(date))) + 1) %>%
     ungroup() %>%
     # Selection of variable name
-    select_at(all_of(
-      c("region", "subregion", "date", "index", variable_name)),
+    select_at(
+      all_of(c("region", "subregion", "date", "index", variable_name)),
       rename_variable
     )
   
@@ -48,6 +48,8 @@ estimate_hurst_exponent_local <- function(
   hurst_method = "rs",
   dfa_degree = 1,
   q_order = 2,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   path = "/home/ASIS/Temp_Felipe",
   verbose = 1
@@ -102,6 +104,8 @@ estimate_hurst_exponent_local <- function(
         df_time_series = df_hurst,
         dfa_degree = dfa_degree,
         q_order = q_order,
+        scale_min = scale_min,
+        scale_max = scale_max,
         n_step = n_step,
         path = path,
         verbose = verbose
@@ -155,6 +159,8 @@ estimate_hurst_exponent_regions <- function(
   hurst_method = "rs",
   dfa_degree = 1,
   q_order = 2,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   path = "/home/ASIS/Temp_Felipe",
   verbose = 1
@@ -190,12 +196,11 @@ estimate_hurst_exponent_regions <- function(
   ) %dopar% {
     # Log output for monitoring progress
     if(verbose >= 1){
-      setwd(path)
       cat(
         paste0(
           "Estimate Hurst for region ", i, " using ", hurst_method, " method\n"
         ),
-        file = "log_hurst_covid_regions.txt",
+        file = paste0(path, "/log_hurst_covid_regions.txt"),
         append = TRUE
       )
     }
@@ -207,6 +212,8 @@ estimate_hurst_exponent_regions <- function(
       hurst_method = hurst_method,
       dfa_degree = dfa_degree,
       q_order = q_order,
+      scale_min = scale_min,
+      scale_max = scale_max,
       n_step = n_step,
       path = path,
       verbose = verbose
@@ -228,6 +235,8 @@ estimate_hurst_exponent_covid <- function(
   hurst_method = "rs",
   dfa_degree = 1,
   q_order = 2,
+  scale_min = 0.2,
+  scale_max = 1.0,
   n_step = 1,
   n_days_skipped = 0,
   fixed_window = "no_fixed",
@@ -282,7 +291,6 @@ estimate_hurst_exponent_covid <- function(
       
       # Log output for monitoring progress
       if(verbose >= 1){
-        setwd(path)
         cat(
           paste0(
             "Estimate Hurst for date ",
@@ -293,7 +301,7 @@ estimate_hurst_exponent_covid <- function(
             hurst_method,
             " method\n"
           ),
-          file = "log_hurst_covid_dates.txt",
+          file = paste0(path, "/log_hurst_covid_dates.txt"),
           append = TRUE
         )
       }
@@ -314,6 +322,8 @@ estimate_hurst_exponent_covid <- function(
         hurst_method = hurst_method,
         dfa_degree = dfa_degree,
         q_order = q_order,
+        scale_min = scale_min,
+        scale_max = scale_max,
         n_step = n_step,
         path = path,
         verbose = verbose
@@ -591,11 +601,18 @@ get_hurst_covid_resume <- function(
     ) %>%
     # Estimate Hurst excess
     mutate(
-      hurst_value = hurst_value -
-        (exp(excess_coefficient) * length^excess_exponent - 0.5),
-      hurst_sd = hurst_sd +
-        exp(excess_coefficient) * length^excess_exponent *
-        (excess_coefficient_sd + excess_exponent_sd * log(length))
+      hurst_excess_fit = exp(excess_coefficient) * length^excess_exponent - 0.5
+    ) %>%
+    mutate(
+      hurst_excess_lower = hurst_excess_fit *
+        (1 - log(length) * excess_exponent_sd - excess_coefficient_sd),
+      hurst_excess_upper = hurst_excess_fit *
+        (1 + log(length) * excess_exponent_sd + excess_coefficient_sd)
+    ) %>%
+    mutate(
+      hurst_value =
+        hurst_value - hurst_excess_fit - hurst_sd - hurst_excess_upper,
+      hurst_sd = hurst_sd + hurst_excess_upper
     ) %>%
     arrange(region, subregion, information, date)
   

@@ -37,17 +37,13 @@ plot_standard_hurst_exponent <- function(
     ) %>%
     geom_point(size = line_size) +
     # Error bars
-    # aes(
-    #   x = date,
-    #   y = hurst_value,
-    #   ymin = hurst_value - hurst_sd,
-    #   ymax = hurst_value + hurst_sd,
-    #   colour = region
-    # ) %>%
-    # geom_errorbar(
-    #   size = 0.7,
-    #   width = 0.25
-    # ) +
+    aes(
+      x = date,
+      ymin = hurst_value - hurst_sd,
+      ymax = hurst_value + hurst_sd,
+      fill = region
+    ) %>%
+    geom_ribbon(alpha = 0.09) +
     # X- axis
     scale_x_date(
       date_breaks = date_breaks, 
@@ -110,6 +106,8 @@ plot_hurst_exponent_data <- function(
   n_y_breaks = 25,
   initial_date = "2020-03-30",
   final_date = "2022-11-01",
+  initial_drop_days = 30,
+  final_drop_days = 30,
   output_path = "./output_files",
   save_plots = FALSE,
   input_date = "2022-12-04",
@@ -129,8 +127,8 @@ plot_hurst_exponent_data <- function(
     date_breaks = date_breaks,
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
+    initial_date = as.Date(initial_date) + initial_drop_days,
+    final_date = as.Date(final_date) - final_drop_days,
     initial_y = df_hurst_covid %>%
       filter(information == "cases") %>%
       pull(hurst_value) %>%
@@ -153,8 +151,8 @@ plot_hurst_exponent_data <- function(
     date_breaks = date_breaks,
     date_minor_breaks = date_minor_breaks,
     n_y_breaks = n_y_breaks,
-    initial_date = initial_date,
-    final_date = final_date,
+    initial_date = as.Date(initial_date) + initial_drop_days,
+    final_date = as.Date(final_date) - final_drop_days,
     initial_y = df_hurst_covid %>%
       filter(information == "deaths") %>%
       pull(hurst_value) %>%
@@ -283,6 +281,14 @@ plot_hurst_overlapping <- function(
         colour = paste0(region, " cases")
       ) %>%
       geom_line(linewidth = line_size) +
+      # Error bars (Cases)
+      aes(
+        x = date,
+        ymin = hurst_value_cases - hurst_sd_cases,
+        ymax = hurst_value_cases + hurst_sd_cases,
+        fill = paste0(region, " cases")
+      ) %>%
+      geom_ribbon(alpha = 0.09) +
       # Plot data (Deaths)
       aes(
         x = date,
@@ -296,6 +302,14 @@ plot_hurst_overlapping <- function(
         colour = paste0(region, " deaths")
       ) %>%
       geom_line(linewidth = line_size) +
+      # Error bars (Deaths)
+      aes(
+        x = date,
+        ymin = hurst_value_deaths - hurst_sd_deaths,
+        ymax = hurst_value_deaths + hurst_sd_deaths,
+        fill = paste0(region, " deaths")
+      ) %>%
+      geom_ribbon(alpha = 0.09) +
       # X- axis
       scale_x_date(
         date_breaks = date_breaks, 

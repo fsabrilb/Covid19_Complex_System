@@ -13,8 +13,8 @@ count_active_subregions <- function(df_covid){
     left_join(
       data.table(
         date = seq(
-          min(df_covid %>% pull(date)),
-          max(df_covid %>% pull(date)),
+          df_covid %>% pull(date) %>% min(na.rm = TRUE),
+          df_covid %>% pull(date) %>% max(na.rm = TRUE),
           "day"
         )
       ),
