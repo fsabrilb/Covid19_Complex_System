@@ -1,15 +1,17 @@
 # ------------------------------ HURST ANALYSIS ------------------------------ #
 # Author: Felipe Segundo Abril Bermúdez
 rm(list = ls())
+input_path <- "/home/ASIS/Temp_Felipe"
 
 # Local path of modules for deployment ----
-setwd("/home/ASIS/Temp_Felipe")
+setwd(input_path)
 source("./modules/estimate_hurst_exponent_rs.R")
 source("./modules/estimate_hurst_exponent_mfdfa.R")
+source("./modules/estimate_mfdfa_analysis.R")
 source("./modules/summarize_hurst_exponent_analysis.R")
 
 # Local path of data frames and global variables ----
-setwd("/home/ASIS/Temp_Felipe")
+setwd(input_path)
 input_path_raw <- "./input_files/raw_data"
 input_path_processed <- "./input_files/processed_data"
 input_path_data_dictionary <- "./input_files/data_dictionary"
@@ -335,6 +337,96 @@ write.csv(
   paste0(
     input_path_processed,
     "/df_hurst_excess_mfdfa_summary_",
+    gsub("-", "", input_generation_date),
+    ".csv"
+  ),
+  fileEncoding = "UTF-8",
+  row.names = FALSE
+)
+
+# Estimation of excess of the Hurst exponent in Brownian paths MFDFA 2 ----
+df_final_hurst_mfdfa_1 <- estimate_excess_brownian_path_mfdfa(
+  n_simulation_vector = rep(1000, 16),
+  n_length_vector = c(
+    60, 74, 91, 105, 121, 135, 152, 166, 182, 196, 213, 227, 244, 258, 274, 288
+  ),
+  mean = 0,
+  sd = 1,
+  dfa_degree = 1,
+  q_order_vector = c(-2, -1, 0, 1, 2),
+  path = input_path,
+  verbose = 1,
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date,
+  number = 1
+)
+
+df_final_hurst_mfdfa_2 <- estimate_excess_brownian_path_mfdfa(
+  n_simulation_vector = rep(1000, 15),
+  n_length_vector = c(
+    305, 319, 335, 349, 366, 380, 397, 411, 425, 439, 456, 470, 486, 500, 517
+  ),
+  mean = 0,
+  sd = 1,
+  dfa_degree = 1,
+  q_order_vector = c(-2, -1, 0, 1, 2),
+  path = input_path,
+  verbose = 1,
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date,
+  number = 2
+)
+
+df_final_hurst_mfdfa_3 <- estimate_excess_brownian_path_mfdfa(
+  n_simulation_vector = rep(1000, 15),
+  n_length_vector = c(
+    531, 547, 561, 578, 592, 609, 623, 639, 653, 670, 684, 700, 714, 731, 745
+  ),
+  mean = 0,
+  sd = 1,
+  dfa_degree = 1,
+  q_order_vector = c(-2, -1, 0, 1, 2),
+  path = input_path,
+  verbose = 1,
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date,
+  number = 3
+)
+
+df_final_hurst_mfdfa_4 <- estimate_excess_brownian_path_mfdfa(
+  n_simulation_vector = rep(1000, 10),
+  n_length_vector = c(
+    762, 776, 790, 804, 821, 835, 851, 865, 882, 896
+  ),
+  mean = 0,
+  sd = 1,
+  dfa_degree = 1,
+  q_order_vector = c(-2, -1, 0, 1, 2),
+  path = input_path,
+  verbose = 1,
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date,
+  number = 4
+)
+
+df_mfdfa_resume <- get_mfdfa_resume(
+  df_hurst = bind_rows(
+    df_final_hurst_mfdfa_1,
+    df_final_hurst_mfdfa_2,
+    df_final_hurst_mfdfa_3,
+    df_final_hurst_mfdfa_4
+  )
+)
+
+write.csv(
+  df_mfdfa_resume,
+  paste0(
+    input_path_processed,
+    "/df_excess_mfdfa_summary_",
     gsub("-", "", input_generation_date),
     ".csv"
   ),

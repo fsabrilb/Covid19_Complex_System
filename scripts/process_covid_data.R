@@ -26,6 +26,9 @@ source("./modules/plot_theil_index_covid_data.R")
 source("./modules/estimate_temporal_fluctuation_scaling.R")
 source("./modules/estimate_temporal_fluctuation_scaling_covid_data.R")
 source("./modules/plot_temporal_fluctuation_scaling_covid_data.R")
+source("./modules/estimate_diffusive_path.R")
+source("./modules/estimate_temporal_theil_scaling_covid_data.R")
+source("./modules/plot_temporal_theil_scaling_covid_data.R")
 
 # Local path of data frames and global variables ----
 setwd(input_path)
@@ -33,42 +36,44 @@ input_path_raw <- "./input_files/raw_data"
 input_path_processed <- "./input_files/processed_data"
 input_path_data_dictionary <- "./input_files/data_dictionary"
 output_path <- "./output_files"
-input_generation_date <- "2022-12-04"
+input_generation_date <- "2023-02-17"
 
 # Generate Covid data through different regions (Preprocess data) ----
 df_covid <- generate_all_covid_data(
   saved_world_data = TRUE,
   saved_usa_data = TRUE,
   saved_usa_county_data = TRUE,
-  saved_brasil_data = TRUE,
+  saved_brazil_data = TRUE,
   saved_europe_data = TRUE,
   saved_spain_data = TRUE,
   saved_india_data = TRUE,
   saved_colombia_data = TRUE,
   saved_all_data = TRUE,
   input_date = input_generation_date
-)
+) %>% filter(region != "Colombia")
 
 # Estimate subregions with at least one case (death) during all pandemic ----
 list_count <- count_active_subregions(df_covid = df_covid)
 plot_active_subregions(
   list_count = list_count,
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 8,
-  line_size = 0.9,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 11,
+  line_size = 1.0,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-01-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  initial_drop = 17,
+  final_drop = 22,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 
 # Estimate correlation between cases and death in every region ----
@@ -83,50 +88,58 @@ list_correlation <- get_all_correlation_data(
 )
 plot_correlation_data(
   list_correlation = list_correlation,
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 8,
-  line_size = 1.1,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 14,
+  line_size = 0.2,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_x_breaks = 20,
   n_y_breaks = 25,
   initial_date = "2020-01-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
   initial_x = 0,
-  final_x = 60,
+  final_x = 90,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 plot_overlapping(
   list_correlation = list_correlation,
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 14,
   line_size = 1.1,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-01-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
   initial_y = 0,
   final_y = 1,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400,
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200,
   verbose = 1
 )
 
 # Estimate adjustment of spatial evolution cases and death in every region ----
+df_matrix_selection <- fread(
+  paste0(input_path_data_dictionary, "/matrix_spatial_evolution.csv")
+) %>%
+  mutate(
+    date = as.Date(date, format = "%m/%d/%Y"),
+    value = as.character(value)
+  )
+
 df_spatial_adjustment <- fit_spatial_evolution(
   df_covid = df_covid,
   days_vector = c(
@@ -145,32 +158,42 @@ df_spatial_adjustment <- fit_spatial_evolution(
     "2022-04-01", "2022-04-15", "2022-05-01", "2022-05-15",
     "2022-06-01", "2022-06-15", "2022-07-01", "2022-07-15",
     "2022-08-01", "2022-08-15", "2022-09-01", "2022-09-15",
-    "2022-10-01", "2022-10-15", "2022-11-01", "2022-11-15"
+    "2022-10-01", "2022-10-15", "2022-11-01", "2022-11-15",
+    "2022-12-01", "2022-12-15", "2023-01-01", "2023-01-15",
+    "2023-02-01"
   ),
   tolerance_optimization = .Machine %>% pluck("double.eps") * 1e3,
+  df_matrix_selection = df_matrix_selection,
   verbose = 1,
   saved_all_data = TRUE,
   input_path_processed = input_path_processed,
+  input_date = input_generation_date
+) %>% mutate(distribution_name = replace_na(distribution_name, "weibull"))
+
+df_spatial_coupling <- estimate_coupling(
+  df_spatial_adjustment = df_spatial_adjustment,
+  output_path = output_path,
+  save_data = TRUE,
   input_date = input_generation_date
 )
 plot_spatial_evolution(
   df_spatial_adjustment = df_spatial_adjustment,
   font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
-  line_size = 1.1,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  line_size = 0.2,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-04-16",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  drop_days = 30,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 
 # Estimate spatial temporal fluctuation scaling (TFS) in every region ----
@@ -192,7 +215,9 @@ df_spatial_tfs_1 <- estimate_spatial_tfs(
     "2022-04-01", "2022-04-15", "2022-05-01", "2022-05-15",
     "2022-06-01", "2022-06-15", "2022-07-01", "2022-07-15",
     "2022-08-01", "2022-08-15", "2022-09-01", "2022-09-15",
-    "2022-10-01", "2022-10-15", "2022-11-01", "2022-11-15"
+    "2022-10-01", "2022-10-15", "2022-11-01", "2022-11-15",
+    "2022-12-01", "2022-12-15", "2023-01-01", "2023-01-15",
+    "2023-02-01"
   ),
   verbose = 1,
   saved_all_data = TRUE,
@@ -218,7 +243,9 @@ df_spatial_tfs_2 <- estimate_spatial_tfs(
     "2022-04-06", "2022-04-20", "2022-05-06", "2022-05-20",
     "2022-06-06", "2022-06-20", "2022-07-06", "2022-07-20",
     "2022-08-06", "2022-08-20", "2022-09-06", "2022-09-20",
-    "2022-10-06", "2022-10-20", "2022-11-06", "2022-11-20"
+    "2022-10-06", "2022-10-20", "2022-11-06", "2022-11-20",
+    "2022-12-06", "2022-12-20", "2023-01-06", "2023-01-20",
+    "2023-02-06"
   ),
   verbose = 1,
   saved_all_data = TRUE,
@@ -255,28 +282,29 @@ df_spatial_tfs_3 <- estimate_spatial_tfs(
 df_spatial_tfs <- bind_rows(
   list(df_spatial_tfs_1, df_spatial_tfs_2, df_spatial_tfs_3)
 )
+rm(df_spatial_tfs_1, df_spatial_tfs_2, df_spatial_tfs_3)
 
-plot_spatial_evolution(
+plot_spatial_evolution_tfs(
   df_spatial_tfs = df_spatial_tfs,
   font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
-  line_size = 1.1,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 15,
+  line_size = 0.2,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-04-16",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 
-# Setup parallel backend to use many processors (Turn on cluster)
+# Setup parallel backend to use many processors (Turn on cluster) ----
 cluster <- makeCluster(detectCores() - 2)
 registerDoParallel(cluster)
 
@@ -358,7 +386,7 @@ df_hurst_excess_rs <- fread(
   paste0(
     input_path_processed,
     "/df_hurst_excess_rs_summary_",
-    gsub("-", "", input_generation_date),
+    gsub("-", "", "2022-12-04"),
     ".csv"
   ),
   encoding = "UTF-8"
@@ -367,7 +395,7 @@ df_hurst_excess_mfdfa <- fread(
   paste0(
     input_path_processed,
     "/df_hurst_excess_mfdfa_summary_",
-    gsub("-", "", input_generation_date),
+    gsub("-", "", "2022-12-04"),
     ".csv"
   ),
   encoding = "UTF-8"
@@ -392,43 +420,47 @@ plot_hurst_exponent_data(
   df_hurst_covid = df_hurst_covid_rs,
   hurst_method = "rs",
   fixed_window = "no_fixed",
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 14,
   line_size = 1.1,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-01-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  initial_drop_days = 65,
+  final_drop_days = 21,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 plot_hurst_exponent_data(
   df_hurst_covid = df_hurst_covid_mfdfa,
   hurst_method = "mfdfa",
   fixed_window = "no_fixed",
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 14,
   line_size = 1.1,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-01-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  initial_drop_days = 130,
+  final_drop_days = 21,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 
 # Estimate Hurst exponent of cases and death in every region (fixed window) ----
@@ -479,45 +511,47 @@ plot_hurst_exponent_data(
   df_hurst_covid = df_hurst_covid_fixed,
   hurst_method = "rs",
   fixed_window = "fixed",
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 14,
   line_size = 1.1,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-03-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  initial_drop_days = 90,
+  final_drop_days = 17,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 plot_hurst_overlapping(
   df_hurst_covid = df_hurst_covid_fixed,
   hurst_method = "rs",
   fixed_window = "fixed",
   font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
-  line_size = 1.1,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 9,
+  line_size = 0.5,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-04-15",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
   initial_y = 0,
   final_y = 1,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400,
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200,
   verbose = 1
 )
 
@@ -530,7 +564,9 @@ list_multiscaling_exponents_cases <- estimate_multiscaling_exponents_covid(
   days_treshold = 60,
   dfa_degree = 1,
   q_order_vector = seq(from = -1.1, to = 2.1, by = 0.2),
-  n_step = 3,
+  scale_min = 0.70,
+  scale_max = 1.00,
+  n_step = 10,
   n_days_skipped = 240,
   fixed_window = "no_fixed",
   path = input_path,
@@ -547,7 +583,9 @@ list_multiscaling_exponents_deaths <- estimate_multiscaling_exponents_covid(
   days_treshold = 60,
   dfa_degree = 1,
   q_order_vector = seq(from = -1.1, to = 2.1, by = 0.2),
-  n_step = 3,
+  scale_min = 0.70,
+  scale_max = 1.00,
+  n_step = 10,
   n_days_skipped = 240,
   fixed_window = "no_fixed",
   path = input_path,
@@ -563,11 +601,11 @@ df_multiscaling_exponents_covid <- get_multiscaling_exponents_covid_resume(
 plot_multiscaling_overlapping(
   df_multiscaling_exponents_covid = df_multiscaling_exponents_covid,
   fixed_window = "no_fixed",
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
   legend_cols = 7,
-  line_size = 1.1,
+  line_size = 0.4,
   n_x_breaks = 25,
   n_y_breaks = 25,
   initial_x = -1,
@@ -575,10 +613,45 @@ plot_multiscaling_overlapping(
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400,
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200,
   verbose = 1
+)
+
+# Estimate MFDA analysis in every region (unfixed window) ----
+df_mfdfa_cases <- estimate_mfdfa_analysis_covid(
+  df_covid = df_covid,
+  initial_date = "2020-01-01",
+  final_date = Sys.Date(),
+  variable_name = "cases",
+  days_treshold = 60,
+  dfa_degree = 1,
+  q_order_vector = seq(from = -2, to = 2, by = 1),
+  n_days_skipped = 240,
+  fixed_window = "no_fixed",
+  path = input_path,
+  verbose = 1,
+  saved_all_data = FALSE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date
+)
+
+df_mfdfa_deaths <- estimate_mfdfa_analysis_covid(
+  df_covid = df_covid,
+  initial_date = "2020-01-01",
+  final_date = Sys.Date(),
+  variable_name = "deaths",
+  days_treshold = 60,
+  dfa_degree = 1,
+  q_order_vector = seq(from = -2, to = 2, by = 1),
+  n_days_skipped = 240,
+  fixed_window = "no_fixed",
+  path = input_path,
+  verbose = 1,
+  saved_all_data = FALSE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date
 )
 
 # Estimate Entropy indexes in every region (unfixed window) ----
@@ -624,21 +697,23 @@ plot_entropy_index_data(
   df_theil_covid = df_theil_covid,
   fixed_window = "no_fixed",
   font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 14,
   line_size = 1.1,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-03-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  initial_drop_days = 18,
+  final_drop_days = 23,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 
 # Estimate Temporal Fluctuation Scaling in every region (unfixed window) ----
@@ -680,43 +755,47 @@ plot_tfs_data(
   df_tfs_covid = df_tfs_covid,
   variable_name = "tfs_coefficient_value",
   fixed_window = "no_fixed",
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 14,
   line_size = 1.1,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-03-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  initial_drop_days = 30,
+  final_drop_days = 20,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 plot_tfs_data(
   df_tfs_covid = df_tfs_covid,
   variable_name = "tfs_exponent_value",
   fixed_window = "no_fixed",
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
   legend_cols = 7,
   line_size = 1.1,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-03-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  initial_drop_days = 30,
+  final_drop_days = 20,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 
 # Estimate Temporal Fluctuation Scaling in every region (fixed window) ----
@@ -758,43 +837,170 @@ plot_tfs_data(
   df_tfs_covid = df_tfs_covid_fixed,
   variable_name = "tfs_coefficient_value",
   fixed_window = "fixed",
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 14,
   line_size = 1.1,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-03-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  initial_drop_days = 45,
+  final_drop_days = 20,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 plot_tfs_data(
   df_tfs_covid = df_tfs_covid_fixed,
   variable_name = "tfs_exponent_value",
   fixed_window = "fixed",
-  font_size = 18,
-  axes_title_relative_size = 0.7,
-  axes_relative_size = 0.6,
-  legend_cols = 7,
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 15,
   line_size = 1.1,
   date_breaks = "2 weeks",
   date_minor_breaks = "1 week",
   n_y_breaks = 25,
   initial_date = "2020-03-30",
-  final_date = "2022-11-01",
+  final_date = "2023-02-01",
+  initial_drop_days = 45,
+  final_drop_days = 20,
   output_path = output_path,
   save_plots = TRUE,
   input_date = input_generation_date,
-  plot_width = 6571,
-  plot_height = 3563,
-  dots_per_inch = 400
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
+)
+
+# Estimate Temporal Theil Scaling in every region (unfixed window) ----
+df_tts_covid_cases <- prepare_tts_covid_data(
+  df_covid = df_covid,
+  initial_date = "2020-01-01",
+  final_date = Sys.Date(),
+  variable_name = "cases",
+  path = input_path,
+  verbose = 1,
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date
+)
+df_tts_covid_cases <- prepare_tts_covid_final_data(
+  df_tts = df_tts_covid_cases,
+  variable_name = "cases",
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date
+)
+
+df_tts_covid_deaths <- prepare_tts_covid_data(
+  df_covid = df_covid,
+  initial_date = "2020-01-01",
+  final_date = Sys.Date(),
+  variable_name = "deaths",
+  path = input_path,
+  verbose = 1,
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date
+)
+df_tts_covid_deaths <- prepare_tts_covid_final_data(
+  df_tts = df_tts_covid_deaths,
+  variable_name = "deaths",
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date
+)
+
+df_tts_cases <- estimate_tts_covid(
+  df_tts = df_tts_covid_cases,
+  initial_date = "2020-03-01",
+  final_date = Sys.Date(),
+  variable_name = "cases",
+  days_treshold = 90,
+  n_days_skipped = 0,
+  fixed_window = "no_fixed",
+  path = input_path,
+  verbose = 1,
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date
+)
+
+df_tts_deaths <- estimate_tts_covid(
+  df_tts = df_tts_covid_deaths,
+  initial_date = "2020-03-01",
+  final_date = Sys.Date(),
+  variable_name = "deaths",
+  days_treshold = 90,
+  n_days_skipped = 0,
+  fixed_window = "no_fixed",
+  path = input_path,
+  verbose = 1,
+  saved_all_data = TRUE,
+  input_path_processed = input_path_processed,
+  input_date = input_generation_date
+)
+
+df_tts_covid <- get_tts_covid_resume(
+  df_tts_cases = df_tts_cases,
+  df_tts_deaths = df_tts_deaths,
+  days_treshold = 60,
+  fixed_window = "no_fixed"
+)
+
+plot_tts_data(
+  df_tts_covid = df_tts_covid %>% filter(time_series == "absolute log-return"),
+  variable_name = "tts_coefficient_value",
+  fixed_window = "no_fixed",
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 5,
+  line_size = 1.1,
+  date_breaks = "2 weeks",
+  date_minor_breaks = "1 week",
+  n_y_breaks = 25,
+  initial_date = "2020-03-30",
+  final_date = "2023-02-01",
+  initial_drop_days = 30,
+  final_drop_days = 20,
+  output_path = output_path,
+  save_plots = TRUE,
+  input_date = input_generation_date,
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
+)
+plot_tts_data(
+  df_tts_covid = df_tts_covid %>% filter(time_series == "absolute log-return"),
+  variable_name = "tts_exponent_value",
+  fixed_window = "no_fixed",
+  font_size = 20,
+  axes_title_relative_size = 0.85,
+  axes_relative_size = 0.80,
+  legend_cols = 5,
+  line_size = 1.1,
+  date_breaks = "2 weeks",
+  date_minor_breaks = "1 week",
+  n_y_breaks = 25,
+  initial_date = "2020-03-30",
+  final_date = "2023-02-01",
+  initial_drop_days = 30,
+  final_drop_days = 20,
+  output_path = output_path,
+  save_plots = TRUE,
+  input_date = input_generation_date,
+  plot_width = 3989,
+  plot_height = 2163,
+  dots_per_inch = 200
 )
 
 # Uninstall parallel back-end to use many processors (Turn off cluster) ----
