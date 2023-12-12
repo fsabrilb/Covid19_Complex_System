@@ -22,5 +22,6 @@ rsconnect/
 # local folders
 input_files/data_dictionary/
 input_files/raw_data/
+input_files/processed_data/
 make_file_deployment.sh
 logs/
